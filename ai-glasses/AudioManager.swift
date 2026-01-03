@@ -31,7 +31,7 @@ final class AudioManager {
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: .default,
-                options: [.allowBluetooth, .defaultToSpeaker]
+                options: [.allowBluetoothHFP, .defaultToSpeaker]
             )
             
             // Activate the audio session
