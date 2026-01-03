@@ -67,6 +67,7 @@ final class GlassesManager: ObservableObject {
     @Published private(set) var availableDevices: [DeviceIdentifier] = []
     @Published private(set) var currentFrame: VideoFrame?
     @Published private(set) var lastCapturedPhoto: Data?
+    @Published private(set) var isRegistered: Bool = false
     
     // MARK: - Private Properties
     
@@ -87,10 +88,32 @@ final class GlassesManager: ObservableObject {
         logger.info("📱 GlassesManager initializing...")
         self.wearables = Wearables.shared
         setupDevicesListener()
+        setupRegistrationListener()
         logger.info("✅ GlassesManager initialized")
     }
     
     // MARK: - Public Methods
+    
+    func register() {
+        logger.info("📝 Starting registration with Meta AI app...")
+        do {
+            try wearables.startRegistration()
+            logger.info("✅ Registration started - check Meta AI app")
+        } catch {
+            logger.error("❌ Registration failed: \(error.localizedDescription)")
+            connectionState = .error("Registration failed: \(error.localizedDescription)")
+        }
+    }
+    
+    func unregister() {
+        logger.info("📝 Starting unregistration...")
+        do {
+            try wearables.startUnregistration()
+            logger.info("✅ Unregistration started")
+        } catch {
+            logger.error("❌ Unregistration failed: \(error.localizedDescription)")
+        }
+    }
     
     func startSearching() {
         logger.info("🔍 Starting device search...")
@@ -195,6 +218,25 @@ final class GlassesManager: ObservableObject {
                     logger.info("  📱 Device \(index): \(String(describing: device))")
                 }
                 self.availableDevices = devices
+            }
+        }
+    }
+    
+    private func setupRegistrationListener() {
+        logger.info("👂 Setting up registration listener...")
+        Task {
+            for await state in wearables.registrationStateStream() {
+                logger.info("📋 Registration state: \(String(describing: state))")
+                await MainActor.run {
+                    // Check if state is .registered
+                    if case .registered = state {
+                        self.isRegistered = true
+                        logger.info("✅ App is registered with Meta AI")
+                    } else {
+                        self.isRegistered = false
+                        logger.info("⚪ Registration state: \(String(describing: state))")
+                    }
+                }
             }
         }
     }

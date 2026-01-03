@@ -7,14 +7,20 @@
 
 import SwiftUI
 import MWDATCore
+import os.log
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "App")
 
 @main
 struct ai_glassesApp: App {
     
     init() {
+        logger.info("🚀 App starting...")
         do {
             try Wearables.configure()
+            logger.info("✅ Wearables SDK configured")
         } catch {
+            logger.error("❌ Failed to configure Wearables SDK: \(error.localizedDescription)")
             fatalError("Failed to configure Wearables SDK: \(error)")
         }
     }
@@ -22,6 +28,17 @@ struct ai_glassesApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in
+                    logger.info("📲 Received URL callback: \(url.absoluteString)")
+                    Task {
+                        do {
+                            _ = try await Wearables.shared.handleUrl(url)
+                            logger.info("✅ URL handled successfully")
+                        } catch {
+                            logger.error("❌ Failed to handle URL: \(error.localizedDescription)")
+                        }
+                    }
+                }
         }
     }
 }

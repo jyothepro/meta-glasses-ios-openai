@@ -15,7 +15,16 @@ struct ContentView: View {
         NavigationStack {
             VStack(spacing: 24) {
                 // Status section
-                StatusSection(state: glassesManager.connectionState)
+                StatusSection(
+                    state: glassesManager.connectionState,
+                    isRegistered: glassesManager.isRegistered,
+                    deviceCount: glassesManager.availableDevices.count
+                )
+                
+                // Registration section (if not registered)
+                if !glassesManager.isRegistered {
+                    RegistrationSection(onRegister: { glassesManager.register() })
+                }
                 
                 // Video preview
                 VideoPreviewSection(
@@ -26,6 +35,7 @@ struct ContentView: View {
                 // Controls
                 ControlsSection(
                     state: glassesManager.connectionState,
+                    isRegistered: glassesManager.isRegistered,
                     onConnect: { glassesManager.startSearching() },
                     onDisconnect: { glassesManager.disconnect() },
                     onStartStream: { glassesManager.startStreaming() },
@@ -51,17 +61,32 @@ struct ContentView: View {
 
 private struct StatusSection: View {
     let state: GlassesConnectionState
+    let isRegistered: Bool
+    let deviceCount: Int
     
     var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 12, height: 12)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 12, height: 12)
+                
+                Text(state.displayText)
+                    .font(.headline)
+                
+                Spacer()
+            }
             
-            Text(state.displayText)
-                .font(.headline)
-            
-            Spacer()
+            HStack(spacing: 16) {
+                Label(isRegistered ? "Registered" : "Not Registered", 
+                      systemImage: isRegistered ? "checkmark.circle.fill" : "xmark.circle")
+                    .font(.caption)
+                    .foregroundColor(isRegistered ? .green : .orange)
+                
+                Label("\(deviceCount) device(s)", systemImage: "glasses")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
         .background(Color(.secondarySystemBackground))
@@ -81,6 +106,31 @@ private struct StatusSection: View {
         case .error:
             return .red
         }
+    }
+}
+
+// MARK: - Registration Section
+
+private struct RegistrationSection: View {
+    let onRegister: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Register with Meta AI app to access glasses")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button(action: onRegister) {
+                Label("Register App", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
     }
 }
 
@@ -139,6 +189,7 @@ private struct VideoFrameView: View {
 
 private struct ControlsSection: View {
     let state: GlassesConnectionState
+    let isRegistered: Bool
     let onConnect: () -> Void
     let onDisconnect: () -> Void
     let onStartStream: () -> Void
@@ -161,7 +212,7 @@ private struct ControlsSection: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(state == .searching || state == .connecting)
+                .disabled(state == .searching || state == .connecting || !isRegistered)
             }
             
             // Streaming controls
