@@ -18,6 +18,36 @@ import os.log
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "GlassesManager")
 
+// MARK: - Media Item
+
+enum MediaItem: Identifiable, Equatable {
+    case photo(id: UUID, data: Data, timestamp: Date)
+    case video(id: UUID, url: URL, timestamp: Date)
+    
+    var id: UUID {
+        switch self {
+        case .photo(let id, _, _):
+            return id
+        case .video(let id, _, _):
+            return id
+        }
+    }
+    
+    var timestamp: Date {
+        switch self {
+        case .photo(_, _, let timestamp):
+            return timestamp
+        case .video(_, _, let timestamp):
+            return timestamp
+        }
+    }
+    
+    var isVideo: Bool {
+        if case .video = self { return true }
+        return false
+    }
+}
+
 // MARK: - Connection State
 
 enum GlassesConnectionState: Equatable {
@@ -71,10 +101,9 @@ final class GlassesManager: ObservableObject {
     }
     @Published private(set) var availableDevices: [DeviceIdentifier] = []
     @Published private(set) var currentFrame: VideoFrame?
-    @Published private(set) var lastCapturedPhoto: Data?
+    @Published private(set) var capturedMedia: [MediaItem] = []
     @Published private(set) var isRegistered: Bool = false
     @Published private(set) var recordingState: RecordingState = .idle
-    @Published private(set) var lastRecordedVideoURL: URL?
     @Published private(set) var isAudioConfigured: Bool = false
     
     // MARK: - Private Properties
@@ -306,7 +335,8 @@ final class GlassesManager: ObservableObject {
             let outputURL = try await videoRecorder.stopRecording()
             saveVideoToLibrary(videoURL: outputURL)
             await MainActor.run {
-                self.lastRecordedVideoURL = outputURL
+                let mediaItem = MediaItem.video(id: UUID(), url: outputURL, timestamp: Date())
+                self.capturedMedia.insert(mediaItem, at: 0)
                 self.recordingState = .idle
             }
             logger.info("✅ Recording saved: \(outputURL.lastPathComponent)")
@@ -376,7 +406,8 @@ final class GlassesManager: ObservableObject {
                 logger.info("📸 Photo received: \(photoData.data.count) bytes")
                 self.savePhotoToLibrary(imageData: photoData.data)
                 Task { @MainActor in
-                    self.lastCapturedPhoto = photoData.data
+                    let mediaItem = MediaItem.photo(id: UUID(), data: photoData.data, timestamp: Date())
+                    self.capturedMedia.insert(mediaItem, at: 0)
                 }
             }
             
@@ -593,7 +624,8 @@ final class GlassesManager: ObservableObject {
             logger.info("📸 Photo received: \(photoData.data.count) bytes")
             self.savePhotoToLibrary(imageData: photoData.data)
             Task { @MainActor in
-                self.lastCapturedPhoto = photoData.data
+                let mediaItem = MediaItem.photo(id: UUID(), data: photoData.data, timestamp: Date())
+                self.capturedMedia.insert(mediaItem, at: 0)
             }
         }
         

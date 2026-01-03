@@ -7,64 +7,67 @@
 
 import SwiftUI
 import MWDATCamera
+import AVFoundation
+import AVKit
 
 struct ContentView: View {
     @StateObject private var glassesManager = GlassesManager()
+    @State private var selectedMediaItem: MediaItem?
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                // Status section
-                StatusSection(
-                    state: glassesManager.connectionState,
-                    isRegistered: glassesManager.isRegistered,
-                    deviceCount: glassesManager.availableDevices.count
-                )
-                
-                // Registration section (if not registered)
-                if !glassesManager.isRegistered {
-                    RegistrationSection(onRegister: { glassesManager.register() })
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Status section
+                    StatusSection(
+                        state: glassesManager.connectionState,
+                        isRegistered: glassesManager.isRegistered,
+                        deviceCount: glassesManager.availableDevices.count
+                    )
+                    
+                    // Registration section (if not registered)
+                    if !glassesManager.isRegistered {
+                        RegistrationSection(onRegister: { glassesManager.register() })
+                    }
+                    
+                    // Video preview
+                    VideoPreviewSection(
+                        frame: glassesManager.currentFrame,
+                        isStreaming: glassesManager.connectionState == .streaming,
+                        isRecording: glassesManager.recordingState == .recording
+                    )
+                    
+                    // Controls
+                    ControlsSection(
+                        state: glassesManager.connectionState,
+                        isRegistered: glassesManager.isRegistered,
+                        recordingState: glassesManager.recordingState,
+                        isAudioConfigured: glassesManager.isAudioConfigured,
+                        onConnect: { glassesManager.startSearching() },
+                        onDisconnect: { glassesManager.disconnect() },
+                        onStartStream: { glassesManager.startStreaming() },
+                        onStopStream: { glassesManager.stopStreaming() },
+                        onCapturePhoto: { glassesManager.capturePhoto() },
+                        onStartQuickVideo: { glassesManager.startQuickVideoRecording() },
+                        onStopQuickVideo: { glassesManager.stopQuickVideoRecording() },
+                        onStartRecording: { glassesManager.startRecording() },
+                        onStopRecording: { glassesManager.stopRecording() }
+                    )
+                    
+                    // Media grid
+                    if !glassesManager.capturedMedia.isEmpty {
+                        MediaGridView(
+                            media: glassesManager.capturedMedia,
+                            selectedItem: $selectedMediaItem
+                        )
+                    }
                 }
-                
-                // Video preview
-                VideoPreviewSection(
-                    frame: glassesManager.currentFrame,
-                    isStreaming: glassesManager.connectionState == .streaming,
-                    isRecording: glassesManager.recordingState == .recording
-                )
-                
-                // Controls
-                ControlsSection(
-                    state: glassesManager.connectionState,
-                    isRegistered: glassesManager.isRegistered,
-                    recordingState: glassesManager.recordingState,
-                    isAudioConfigured: glassesManager.isAudioConfigured,
-                    onConnect: { glassesManager.startSearching() },
-                    onDisconnect: { glassesManager.disconnect() },
-                    onStartStream: { glassesManager.startStreaming() },
-                    onStopStream: { glassesManager.stopStreaming() },
-                    onCapturePhoto: { glassesManager.capturePhoto() },
-                    onStartQuickVideo: { glassesManager.startQuickVideoRecording() },
-                    onStopQuickVideo: { glassesManager.stopQuickVideoRecording() },
-                    onStartRecording: { glassesManager.startRecording() },
-                    onStopRecording: { glassesManager.stopRecording() }
-                )
-                
-                // Photo preview
-                if let photoData = glassesManager.lastCapturedPhoto,
-                   let uiImage = UIImage(data: photoData) {
-                    PhotoPreviewSection(image: uiImage)
-                }
-                
-                // Video preview
-                if let videoURL = glassesManager.lastRecordedVideoURL {
-                    VideoFileSection(videoURL: videoURL)
-                }
-                
-                Spacer()
+                .padding()
             }
-            .padding()
             .navigationTitle("AI Glasses")
+            .fullScreenCover(item: $selectedMediaItem) { item in
+                MediaDetailView(item: item)
+            }
         }
     }
 }
@@ -338,84 +341,243 @@ private struct ControlsSection: View {
     }
 }
 
-// MARK: - Photo Preview Section
+// MARK: - Media Grid View
 
-private struct PhotoPreviewSection: View {
-    let image: UIImage
+private struct MediaGridView: View {
+    let media: [MediaItem]
+    @Binding var selectedItem: MediaItem?
+    
+    private let columns = [
+        GridItem(.flexible(), spacing: 4),
+        GridItem(.flexible(), spacing: 4),
+        GridItem(.flexible(), spacing: 4)
+    ]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Last Captured Photo")
+            Text("Captured Media")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 120)
-                .cornerRadius(8)
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(media) { item in
+                    MediaThumbnailView(item: item)
+                        .onTapGesture {
+                            selectedItem = item
+                        }
+                }
+            }
         }
     }
 }
 
-// MARK: - Video File Section
+// MARK: - Media Thumbnail View
 
-private struct VideoFileSection: View {
-    let videoURL: URL
-    @State private var showShareSheet = false
+private struct MediaThumbnailView: View {
+    let item: MediaItem
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Last Recorded Video")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Button(action: { showShareSheet = true }) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.caption)
-                }
-            }
-            
-            HStack(spacing: 12) {
-                Image(systemName: "film")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(videoURL.lastPathComponent)
-                        .font(.caption)
-                        .lineLimit(1)
-                    
-                    if let fileSize = getFileSize(url: videoURL) {
-                        Text(fileSize)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
+        ZStack {
+            switch item {
+            case .photo(_, let data, _):
+                if let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(minWidth: 0, maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                        .clipped()
+                        .cornerRadius(8)
                 }
                 
-                Spacer()
+            case .video(_, let url, _):
+                VideoThumbnailView(url: url)
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipped()
+                    .cornerRadius(8)
+                    .overlay(
+                        Image(systemName: "play.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                    )
             }
-            .padding()
-            .background(Color(.tertiarySystemBackground))
-            .cornerRadius(8)
         }
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [videoURL])
+    }
+}
+
+// MARK: - Video Thumbnail View
+
+private struct VideoThumbnailView: View {
+    let url: URL
+    @State private var thumbnail: UIImage?
+    
+    var body: some View {
+        Group {
+            if let thumbnail = thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Rectangle()
+                    .fill(Color(.tertiarySystemBackground))
+                    .overlay(
+                        Image(systemName: "film")
+                            .foregroundColor(.secondary)
+                    )
+            }
+        }
+        .onAppear {
+            generateThumbnail()
         }
     }
     
-    private func getFileSize(url: URL) -> String? {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attributes[.size] as? Int64 else {
-            return nil
+    private func generateThumbnail() {
+        Task.detached(priority: .utility) {
+            let asset = AVAsset(url: url)
+            let imageGenerator = AVAssetImageGenerator(asset: asset)
+            imageGenerator.appliesPreferredTrackTransform = true
+            imageGenerator.maximumSize = CGSize(width: 200, height: 200)
+            
+            do {
+                let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
+                let uiImage = UIImage(cgImage: cgImage)
+                await MainActor.run {
+                    self.thumbnail = uiImage
+                }
+            } catch {
+                // Thumbnail generation failed, keep placeholder
+            }
         }
-        
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: size)
+    }
+}
+
+// MARK: - Media Detail View
+
+private struct MediaDetailView: View {
+    let item: MediaItem
+    @Environment(\.dismiss) private var dismiss
+    @State private var showShareSheet = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                switch item {
+                case .photo(_, let data, _):
+                    PhotoDetailContent(data: data)
+                    
+                case .video(_, let url, _):
+                    VideoDetailContent(url: url)
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showShareSheet = true }) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(items: [shareItem])
+            }
+        }
+    }
+    
+    private var shareItem: Any {
+        switch item {
+        case .photo(_, let data, _):
+            return data
+        case .video(_, let url, _):
+            return url
+        }
+    }
+}
+
+// MARK: - Photo Detail Content
+
+private struct PhotoDetailContent: View {
+    let data: Data
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    
+    var body: some View {
+        if let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .scaleEffect(scale)
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            scale = lastScale * value
+                        }
+                        .onEnded { _ in
+                            lastScale = scale
+                            // Limit zoom range
+                            if scale < 1.0 {
+                                withAnimation {
+                                    scale = 1.0
+                                    lastScale = 1.0
+                                }
+                            } else if scale > 4.0 {
+                                withAnimation {
+                                    scale = 4.0
+                                    lastScale = 4.0
+                                }
+                            }
+                        }
+                )
+                .onTapGesture(count: 2) {
+                    withAnimation {
+                        if scale > 1.0 {
+                            scale = 1.0
+                            lastScale = 1.0
+                        } else {
+                            scale = 2.0
+                            lastScale = 2.0
+                        }
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - Video Detail Content
+
+private struct VideoDetailContent: View {
+    let url: URL
+    @State private var player: AVPlayer?
+    
+    var body: some View {
+        Group {
+            if let player = player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+        .onAppear {
+            player = AVPlayer(url: url)
+            player?.play()
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+        }
     }
 }
 
