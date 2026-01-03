@@ -32,12 +32,13 @@ struct ContentView: View {
                             deviceCount: glassesManager.availableDevices.count
                         )
                         
-                        // Video preview
-                        VideoPreviewSection(
-                            frame: glassesManager.currentFrame,
-                            isStreaming: glassesManager.connectionState == .streaming,
-                            isRecording: glassesManager.recordingState == .recording
-                        )
+                        // Video preview (only when streaming)
+                        if glassesManager.connectionState == .streaming {
+                            VideoPreviewSection(
+                                frame: glassesManager.currentFrame,
+                                isRecording: glassesManager.recordingState == .recording
+                            )
+                        }
                         
                         // Controls
                         ControlsSection(
@@ -166,7 +167,6 @@ private struct RegistrationSection: View {
 
 private struct VideoPreviewSection: View {
     let frame: VideoFrame?
-    let isStreaming: Bool
     let isRecording: Bool
     
     var body: some View {
@@ -175,22 +175,11 @@ private struct VideoPreviewSection: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.black)
             
-            if isStreaming {
-                if let frame = frame {
-                    VideoFrameView(frame: frame)
-                } else {
-                    ProgressView()
-                        .tint(.white)
-                }
+            if let frame = frame {
+                VideoFrameView(frame: frame)
             } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "video.slash")
-                        .font(.largeTitle)
-                        .foregroundColor(.gray)
-                    Text("No video stream")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
+                ProgressView()
+                    .tint(.white)
             }
             
             // Recording indicator
