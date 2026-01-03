@@ -203,7 +203,66 @@ final class GlassesManager: ObservableObject {
     
     func capturePhoto() {
         logger.info("📸 Capturing photo...")
-        streamSession?.capturePhoto(format: .jpeg)
+        if streamSession != nil {
+            streamSession?.capturePhoto(format: .jpeg)
+        } else {
+            // Start a temporary stream session just for photo capture
+            capturePhotoWithTemporaryStream()
+        }
+    }
+    
+    private func capturePhotoWithTemporaryStream() {
+        guard let selector = deviceSelector else {
+            logger.error("❌ No device selector for photo capture")
+            connectionState = .error("Connect to glasses first")
+            return
+        }
+        
+        Task {
+            // Check camera permission
+            do {
+                let cameraStatus = try await wearables.checkPermissionStatus(.camera)
+                if cameraStatus != .granted {
+                    logger.info("📷 Requesting camera permission for photo...")
+                    let newStatus = try await wearables.requestPermission(.camera)
+                    if newStatus != .granted {
+                        logger.error("❌ Camera permission denied")
+                        connectionState = .error("Camera permission denied")
+                        return
+                    }
+                }
+            } catch {
+                logger.error("❌ Camera permission error: \(error.localizedDescription)")
+                return
+            }
+            
+            logger.info("📸 Starting temporary stream for photo capture")
+            let config = StreamSessionConfig()
+            let tempSession = StreamSession(streamSessionConfig: config, deviceSelector: selector)
+            
+            // Subscribe to photo only
+            let photoToken = tempSession.photoDataPublisher.listen { [weak self] (photoData: PhotoData) in
+                guard let self else { return }
+                logger.info("📸 Photo received: \(photoData.data.count) bytes")
+                Task { @MainActor in
+                    self.lastCapturedPhoto = photoData.data
+                }
+            }
+            
+            await tempSession.start()
+            
+            // Small delay to ensure stream is ready
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
+            
+            tempSession.capturePhoto(format: .jpeg)
+            
+            // Wait for photo to be captured
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec
+            
+            await tempSession.stop()
+            await photoToken.cancel()
+            logger.info("📸 Temporary stream stopped")
+        }
     }
     
     func disconnect() {

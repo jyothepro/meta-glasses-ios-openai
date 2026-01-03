@@ -225,19 +225,20 @@ private struct ControlsSection: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(.orange)
-                        
-                        Button(action: onCapturePhoto) {
-                            Label("Photo", systemImage: "camera.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
                     } else {
                         Button(action: onStartStream) {
-                            Label("Start Streaming", systemImage: "video.fill")
+                            Label("Stream", systemImage: "video.fill")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                     }
+                    
+                    Button(action: onCapturePhoto) {
+                        Label("Photo", systemImage: "camera.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
                 }
             }
         }
