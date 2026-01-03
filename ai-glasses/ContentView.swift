@@ -440,7 +440,7 @@ private struct VideoThumbnailView: View {
             imageGenerator.maximumSize = CGSize(width: 200, height: 200)
             
             do {
-                let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
+                let (cgImage, _) = try await imageGenerator.image(at: .zero)
                 let uiImage = UIImage(cgImage: cgImage)
                 await MainActor.run {
                     self.thumbnail = uiImage
