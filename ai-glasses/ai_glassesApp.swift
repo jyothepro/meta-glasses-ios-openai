@@ -6,27 +6,22 @@
 //
 
 import SwiftUI
-import SwiftData
+import MWDATCore
 
 @main
 struct ai_glassesApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
+    
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            try Wearables.configure()
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Failed to configure Wearables SDK: \(error)")
         }
-    }()
-
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
     }
 }

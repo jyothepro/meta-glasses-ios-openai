@@ -2,7 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Bluetooth permission for glasses connection -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app uses Bluetooth to connect to and communicate with Meta Ray-Ban smart glasses.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app uses Bluetooth to connect to and communicate with Meta Ray-Ban smart glasses.</string>
+	
+	<!-- Background modes for Bluetooth -->
 	<key>UIBackgroundModes</key>
-	<array/>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
+	
+	<!-- Meta Wearables DAT configuration -->
+	<key>MWDAT</key>
+	<dict>
+		<!-- TODO: Replace with your Meta App ID from developer.meta.com -->
+		<key>MetaAppID</key>
+		<string>YOUR_META_APP_ID</string>
+		<key>AppLinkURLScheme</key>
+		<string>aiglasses</string>
+		<key>Analytics</key>
+		<dict>
+			<key>OptOut</key>
+			<true/>
+		</dict>
+	</dict>
+	
+	<!-- URL Scheme for Meta app link -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aiglasses</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
