@@ -29,24 +29,34 @@ struct ContentView: View {
                 // Video preview
                 VideoPreviewSection(
                     frame: glassesManager.currentFrame,
-                    isStreaming: glassesManager.connectionState == .streaming
+                    isStreaming: glassesManager.connectionState == .streaming,
+                    isRecording: glassesManager.recordingState == .recording
                 )
                 
                 // Controls
                 ControlsSection(
                     state: glassesManager.connectionState,
                     isRegistered: glassesManager.isRegistered,
+                    recordingState: glassesManager.recordingState,
+                    isAudioConfigured: glassesManager.isAudioConfigured,
                     onConnect: { glassesManager.startSearching() },
                     onDisconnect: { glassesManager.disconnect() },
                     onStartStream: { glassesManager.startStreaming() },
                     onStopStream: { glassesManager.stopStreaming() },
-                    onCapturePhoto: { glassesManager.capturePhoto() }
+                    onCapturePhoto: { glassesManager.capturePhoto() },
+                    onStartRecording: { glassesManager.startRecording() },
+                    onStopRecording: { glassesManager.stopRecording() }
                 )
                 
                 // Photo preview
                 if let photoData = glassesManager.lastCapturedPhoto,
                    let uiImage = UIImage(data: photoData) {
                     PhotoPreviewSection(image: uiImage)
+                }
+                
+                // Video preview
+                if let videoURL = glassesManager.lastRecordedVideoURL {
+                    VideoFileSection(videoURL: videoURL)
                 }
                 
                 Spacer()
@@ -139,6 +149,7 @@ private struct RegistrationSection: View {
 private struct VideoPreviewSection: View {
     let frame: VideoFrame?
     let isStreaming: Bool
+    let isRecording: Bool
     
     var body: some View {
         ZStack {
@@ -162,6 +173,29 @@ private struct VideoPreviewSection: View {
                     Text("No video stream")
                         .font(.caption)
                         .foregroundColor(.gray)
+                }
+            }
+            
+            // Recording indicator
+            if isRecording {
+                VStack {
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 10, height: 10)
+                            Text("REC")
+                                .font(.caption.bold())
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(8)
+                        .padding(12)
+                    }
+                    Spacer()
                 }
             }
         }
@@ -190,14 +224,30 @@ private struct VideoFrameView: View {
 private struct ControlsSection: View {
     let state: GlassesConnectionState
     let isRegistered: Bool
+    let recordingState: RecordingState
+    let isAudioConfigured: Bool
     let onConnect: () -> Void
     let onDisconnect: () -> Void
     let onStartStream: () -> Void
     let onStopStream: () -> Void
     let onCapturePhoto: () -> Void
+    let onStartRecording: () -> Void
+    let onStopRecording: () -> Void
     
     var body: some View {
         VStack(spacing: 16) {
+            // Audio status indicator when streaming
+            if state == .streaming {
+                HStack(spacing: 8) {
+                    Image(systemName: isAudioConfigured ? "mic.fill" : "mic.slash")
+                        .foregroundColor(isAudioConfigured ? .green : .orange)
+                    Text(isAudioConfigured ? "Audio ready" : "Audio not available")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            }
+            
             // Connection button
             if state.isConnected {
                 Button(action: onDisconnect) {
@@ -206,6 +256,7 @@ private struct ControlsSection: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
+                .disabled(recordingState == .recording)
             } else {
                 Button(action: onConnect) {
                     Label("Connect to Glasses", systemImage: "wifi")
@@ -225,6 +276,7 @@ private struct ControlsSection: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(.orange)
+                        .disabled(recordingState == .recording)
                     } else {
                         Button(action: onStartStream) {
                             Label("Stream", systemImage: "video.fill")
@@ -239,6 +291,45 @@ private struct ControlsSection: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
+                    .disabled(recordingState == .recording)
+                }
+                
+                // Recording controls (only when streaming)
+                if state == .streaming {
+                    HStack(spacing: 16) {
+                        if recordingState == .recording {
+                            Button(action: onStopRecording) {
+                                Label("Stop Recording", systemImage: "stop.circle.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                        } else {
+                            Button(action: onStartRecording) {
+                                Label("Record Video", systemImage: "record.circle")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                            .disabled(recordingState == .finishing)
+                        }
+                    }
+                    
+                    if recordingState == .finishing {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Saving video...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    if case .error(let message) = recordingState {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
             }
         }
@@ -263,6 +354,79 @@ private struct PhotoPreviewSection: View {
                 .cornerRadius(8)
         }
     }
+}
+
+// MARK: - Video File Section
+
+private struct VideoFileSection: View {
+    let videoURL: URL
+    @State private var showShareSheet = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Last Recorded Video")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button(action: { showShareSheet = true }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.caption)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                Image(systemName: "film")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(videoURL.lastPathComponent)
+                        .font(.caption)
+                        .lineLimit(1)
+                    
+                    if let fileSize = getFileSize(url: videoURL) {
+                        Text(fileSize)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(8)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [videoURL])
+        }
+    }
+    
+    private func getFileSize(url: URL) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? Int64 else {
+            return nil
+        }
+        
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: size)
+    }
+}
+
+// MARK: - Share Sheet
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

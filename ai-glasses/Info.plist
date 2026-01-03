@@ -6,6 +6,10 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Needed to connect to Meta Wearables</string>
 	
+	<!-- Microphone permission for audio recording -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Needed to record audio from Meta Wearables</string>
+	
 	<!-- Allow Meta AI (fb-viewapp) to call the app -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

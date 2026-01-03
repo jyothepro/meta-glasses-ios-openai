@@ -7,8 +7,10 @@
 
 import Foundation
 import Combine
+import UIKit
 import MWDATCore
 import MWDATCamera
+import AVFoundation
 import os.log
 
 // MARK: - Logging
@@ -70,12 +72,20 @@ final class GlassesManager: ObservableObject {
     @Published private(set) var currentFrame: VideoFrame?
     @Published private(set) var lastCapturedPhoto: Data?
     @Published private(set) var isRegistered: Bool = false
+    @Published private(set) var recordingState: RecordingState = .idle
+    @Published private(set) var lastRecordedVideoURL: URL?
+    @Published private(set) var isAudioConfigured: Bool = false
     
     // MARK: - Private Properties
     
     private let wearables: WearablesInterface
     private var deviceSelector: AutoDeviceSelector?
     private var streamSession: StreamSession?
+    
+    // Audio and video recording
+    private let audioManager = AudioManager()
+    private let videoRecorder = VideoRecorder()
+    private var pendingRecordingURL: URL?
     
     // Listener tokens - must be retained to keep subscriptions active
     private var devicesListenerToken: AnyListenerToken?
@@ -151,6 +161,20 @@ final class GlassesManager: ObservableObject {
         }
         
         Task {
+            // Configure audio BEFORE starting stream (required for HFP)
+            do {
+                try audioManager.configureForHFP()
+                isAudioConfigured = true
+                
+                // Wait for HFP to be ready (as per Meta docs)
+                try await Task.sleep(nanoseconds: 2 * NSEC_PER_SEC)
+                logger.info("🎤 Audio configured, HFP ready")
+            } catch {
+                logger.warning("⚠️ Audio configuration failed: \(error.localizedDescription)")
+                isAudioConfigured = false
+                // Continue without audio - video streaming still works
+            }
+            
             // Check and request camera permission
             do {
                 let cameraStatus = try await wearables.checkPermissionStatus(.camera)
@@ -188,10 +212,19 @@ final class GlassesManager: ObservableObject {
     func stopStreaming() {
         logger.info("⏹️ Stopping streaming")
         Task {
+            // Stop recording if in progress
+            if recordingState == .recording {
+                await stopRecordingInternal()
+            }
+            
             await streamSession?.stop()
             streamSession = nil
             currentFrame = nil
             await cancelStreamListeners()
+            
+            // Deactivate audio
+            audioManager.deactivate()
+            isAudioConfigured = false
             
             if deviceSelector?.activeDevice != nil {
                 connectionState = .connected
@@ -199,6 +232,76 @@ final class GlassesManager: ObservableObject {
                 connectionState = .disconnected
             }
         }
+    }
+    
+    // MARK: - Video Recording
+    
+    func startRecording() {
+        guard connectionState == .streaming else {
+            logger.warning("⚠️ Must be streaming to record")
+            recordingState = .error("Must be streaming to record")
+            return
+        }
+        
+        guard recordingState == .idle else {
+            logger.warning("⚠️ Recording already in progress")
+            return
+        }
+        
+        // Get video size from current frame
+        var videoSize = CGSize(width: 640, height: 360) // Default low resolution
+        if let frame = currentFrame, let image = frame.makeUIImage() {
+            videoSize = image.size
+        }
+        
+        do {
+            pendingRecordingURL = try videoRecorder.startRecording(
+                videoSize: videoSize,
+                frameRate: 24
+            )
+            recordingState = .recording
+            logger.info("🔴 Recording started")
+        } catch {
+            logger.error("❌ Failed to start recording: \(error.localizedDescription)")
+            recordingState = .error(error.localizedDescription)
+        }
+    }
+    
+    func stopRecording() {
+        guard recordingState == .recording else {
+            logger.warning("⚠️ No recording in progress")
+            return
+        }
+        
+        Task {
+            await stopRecordingInternal()
+        }
+    }
+    
+    private func stopRecordingInternal() async {
+        recordingState = .finishing
+        
+        do {
+            let outputURL = try await videoRecorder.stopRecording()
+            await MainActor.run {
+                self.lastRecordedVideoURL = outputURL
+                self.recordingState = .idle
+            }
+            logger.info("✅ Recording saved: \(outputURL.lastPathComponent)")
+        } catch {
+            await MainActor.run {
+                self.recordingState = .error(error.localizedDescription)
+            }
+            logger.error("❌ Failed to stop recording: \(error.localizedDescription)")
+        }
+    }
+    
+    func cancelRecording() {
+        guard recordingState == .recording else { return }
+        
+        videoRecorder.cancelRecording()
+        recordingState = .idle
+        pendingRecordingURL = nil
     }
     
     func capturePhoto() {
@@ -268,10 +371,21 @@ final class GlassesManager: ObservableObject {
     func disconnect() {
         logger.info("🔌 Disconnecting...")
         Task {
+            // Cancel any recording in progress
+            if recordingState == .recording {
+                videoRecorder.cancelRecording()
+                recordingState = .idle
+            }
+            
             await streamSession?.stop()
             streamSession = nil
             currentFrame = nil
             await cancelStreamListeners()
+            
+            // Deactivate audio
+            audioManager.deactivate()
+            isAudioConfigured = false
+            
             deviceSelector = nil
             connectionState = .disconnected
             logger.info("✅ Disconnected")
@@ -328,6 +442,14 @@ final class GlassesManager: ObservableObject {
             if frameCount == 1 || frameCount % 100 == 0 {
                 logger.debug("🎞️ Frame #\(frameCount) received")
             }
+            
+            // Append frame to video recorder if recording
+            if self.videoRecorder.recordingInProgress {
+                if let image = frame.makeUIImage() {
+                    self.videoRecorder.appendFrame(image: image)
+                }
+            }
+            
             Task { @MainActor in
                 self.currentFrame = frame
             }
