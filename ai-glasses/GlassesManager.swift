@@ -817,11 +817,15 @@ final class GlassesManager: ObservableObject {
             let storedItems = try JSONDecoder().decode([StoredMediaItem].self, from: data)
             let loadedItems = storedItems.compactMap { $0.toMediaItem() }
             let skippedCount = storedItems.count - loadedItems.count
-            if skippedCount > 0 {
-                Log.glasses.warning("⚠️ Skipped \(skippedCount) media items (files not found)")
-            }
+            
             capturedMedia = loadedItems
             Log.glasses.info("📂 Loaded \(loadedItems.count) media items")
+            
+            // Clean up metadata for missing files - they can't be recovered
+            if skippedCount > 0 {
+                Log.glasses.info("🧹 Removing \(skippedCount) orphaned metadata entries (files not found)")
+                saveMediaList()
+            }
         } catch {
             Log.glasses.error("❌ Failed to load media list: \(error.localizedDescription)")
         }
