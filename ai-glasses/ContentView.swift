@@ -83,7 +83,7 @@ private struct StatusSection: View {
                     .font(.caption)
                     .foregroundColor(isRegistered ? .green : .orange)
                 
-                Label("\(deviceCount) device(s)", systemImage: "glasses")
+                Label("\(deviceCount) device(s)", systemImage: "eyeglasses")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

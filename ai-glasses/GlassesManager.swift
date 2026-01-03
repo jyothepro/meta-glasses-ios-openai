@@ -149,19 +149,41 @@ final class GlassesManager: ObservableObject {
             return
         }
         
-        // Use default config: raw video, medium resolution, 30 FPS
-        let config = StreamSessionConfig()
-        logger.info("📹 Creating StreamSession with default config")
-        
-        streamSession = StreamSession(
-            streamSessionConfig: config,
-            deviceSelector: selector
-        )
-        
-        subscribeToStreamSession()
-        logger.info("📡 Subscribed to stream session publishers")
-        
         Task {
+            // Check and request camera permission
+            do {
+                let cameraStatus = try await wearables.checkPermissionStatus(.camera)
+                logger.info("📷 Camera permission status: \(String(describing: cameraStatus))")
+                
+                if cameraStatus != .granted {
+                    logger.info("📷 Requesting camera permission...")
+                    let newStatus = try await wearables.requestPermission(.camera)
+                    logger.info("📷 Camera permission result: \(String(describing: newStatus))")
+                    
+                    if newStatus != .granted {
+                        logger.error("❌ Camera permission denied")
+                        connectionState = .error("Camera permission denied")
+                        return
+                    }
+                }
+            } catch {
+                logger.error("❌ Failed to check/request camera permission: \(error.localizedDescription)")
+                connectionState = .error("Camera permission error: \(error.localizedDescription)")
+                return
+            }
+            
+            // Use default config: raw video, medium resolution, 30 FPS
+            let config = StreamSessionConfig()
+            logger.info("📹 Creating StreamSession with default config")
+            
+            streamSession = StreamSession(
+                streamSessionConfig: config,
+                deviceSelector: selector
+            )
+            
+            subscribeToStreamSession()
+            logger.info("📡 Subscribed to stream session publishers")
+            
             logger.info("▶️ Calling streamSession.start()...")
             await streamSession?.start()
             logger.info("✅ streamSession.start() completed")
