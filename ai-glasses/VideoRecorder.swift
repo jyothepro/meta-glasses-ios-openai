@@ -401,17 +401,12 @@ final class VideoRecorder {
             throw RecordingError.mergeFailed
         }
         
-        exporter.outputURL = outputURL
-        exporter.outputFileType = .mp4
-        
-        await exporter.export()
-        
-        if exporter.status == .completed {
+        do {
+            try await exporter.export(to: outputURL, as: .mp4)
             logger.info("✅ Audio/video merge completed")
             return outputURL
-        } else {
-            let error = exporter.error?.localizedDescription ?? "Unknown error"
-            logger.error("❌ Merge failed: \(error)")
+        } catch {
+            logger.error("❌ Merge failed: \(error.localizedDescription)")
             throw RecordingError.mergeFailed
         }
     }
