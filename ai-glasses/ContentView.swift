@@ -58,7 +58,9 @@ struct ContentView: View {
                         }
                         .tag(AppTab.voiceAgent)
                     
-                    ThreadsView()
+                    ThreadsView(onContinueThread: {
+                            selectedTab = .voiceAgent
+                        })
                         .tabItem {
                             Label("Threads", systemImage: "bubble.left.and.bubble.right")
                         }

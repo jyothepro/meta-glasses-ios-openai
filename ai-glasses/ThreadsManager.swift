@@ -94,6 +94,9 @@ final class ThreadsManager: ObservableObject {
     @Published private(set) var threads: [ConversationThread] = []
     @Published private(set) var activeThreadId: UUID?
     
+    /// Thread ID to continue when VoiceAgent appears (set by ThreadDetailView)
+    @Published var pendingContinuationThreadId: UUID?
+    
     private let fileName = "threads.json"
     
     private var fileURL: URL {
@@ -177,6 +180,18 @@ final class ThreadsManager: ObservableObject {
         threads.first { $0.id == id }
     }
     
+    /// Resume an existing thread (set it as active for continuation)
+    func resumeThread(id: UUID) -> [StoredMessage]? {
+        guard let thread = thread(id: id) else {
+            logger.warning("⚠️ Cannot resume thread: not found \(id)")
+            return nil
+        }
+        
+        activeThreadId = id
+        logger.info("▶️ Resumed thread: \(id) with \(thread.messages.count) messages")
+        return thread.messages
+    }
+    
     // MARK: - Persistence
     
     private func load() {
@@ -187,12 +202,16 @@ final class ThreadsManager: ObservableObject {
         
         do {
             let data = try Data(contentsOf: fileURL)
-            threads = try JSONDecoder().decode([ConversationThread].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            threads = try decoder.decode([ConversationThread].self, from: data)
             // Sort by updatedAt descending (newest first)
             threads.sort { $0.updatedAt > $1.updatedAt }
             logger.info("Loaded \(self.threads.count) threads")
         } catch {
-            logger.error("Failed to load threads: \(error.localizedDescription)")
+            logger.error("❌ Failed to load threads: \(error)")
+            // Print full error details to console for debugging
+            print("❌ ThreadsManager load error: \(error)")
         }
     }
     
@@ -204,7 +223,8 @@ final class ThreadsManager: ObservableObject {
             try data.write(to: fileURL, options: .atomic)
             logger.debug("Saved threads to \(self.fileURL.path)")
         } catch {
-            logger.error("Failed to save threads: \(error.localizedDescription)")
+            logger.error("❌ Failed to save threads: \(error)")
+            print("❌ ThreadsManager save error: \(error)")
         }
     }
 }

@@ -13,6 +13,7 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glass
 struct VoiceAgentView: View {
     @ObservedObject var glassesManager: GlassesManager
     @StateObject private var client: RealtimeAPIClient
+    @ObservedObject private var threadsManager = ThreadsManager.shared
     
     init(glassesManager: GlassesManager) {
         self.glassesManager = glassesManager
@@ -56,11 +57,29 @@ struct VoiceAgentView: View {
             .navigationTitle("Voice Agent")
             .onAppear {
                 logger.info("📱 Voice Agent tab appeared")
+                checkPendingContinuation()
             }
             .onDisappear {
                 logger.info("📱 Voice Agent tab disappeared")
             }
         }
+    }
+    
+    /// Check if there's a pending thread continuation and auto-connect
+    private func checkPendingContinuation() {
+        guard let threadId = threadsManager.pendingContinuationThreadId else { return }
+        
+        // Clear the pending continuation
+        threadsManager.pendingContinuationThreadId = nil
+        
+        // Only auto-connect if not already connected
+        guard client.connectionState == .disconnected else {
+            logger.warning("⚠️ Cannot continue thread: already connected")
+            return
+        }
+        
+        logger.info("▶️ Auto-connecting to continue thread: \(threadId)")
+        client.connect(threadId: threadId)
     }
 }
 

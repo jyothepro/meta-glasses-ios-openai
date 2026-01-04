@@ -20,9 +20,10 @@ iOS app for experimenting with Meta Ray-Ban smart glasses.
 
 ## Architecture
 
-### Glasses Tab
+### App Structure
+- `ContentView` - TabView with Voice Agent, Threads, and Settings tabs
 - `GlassesManager` - singleton for glasses connection and streaming
-- `ContentView` - TabView with Voice Agent, Glasses, and Settings tabs
+- `GlassesTab` - glasses UI, accessed via Settings → Hardware → Glasses
 - `AudioManager` - Bluetooth HFP audio session for glasses mic
 - `VideoRecorder` - records video frames with audio to file
 
@@ -30,6 +31,11 @@ iOS app for experimenting with Meta Ray-Ban smart glasses.
 - `RealtimeAPIClient` - WebSocket client for OpenAI Realtime API with audio capture/playback
 - `VoiceAgentView` - UI for voice conversations with OpenAI
 - `Config` - API keys (copy `Config.swift.example` → `Config.swift`)
+
+### Threads Tab
+- `ThreadsManager` - singleton for conversation history persistence to Documents/threads.json
+- `ThreadsView` - UI for browsing past conversations
+- Continue discussion: resumes thread via `conversation.item.create` to populate history
 
 ### Settings Tab
 - `SettingsManager` - singleton for settings persistence to Documents/settings.json

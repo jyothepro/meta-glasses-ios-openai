@@ -133,6 +133,10 @@ final class RealtimeAPIClient: ObservableObject {
     // Settings observer for live updates
     private var settingsSubscription: AnyCancellable?
     
+    // Thread ID for continuation (if resuming existing thread)
+    private var continuationThreadId: UUID?
+    private var historyToLoad: [StoredMessage] = []
+    
     // Base system instructions (without user customizations)
     private let baseInstructions = """
         You are a helpful voice assistant integrated into Meta Ray-Ban smart glasses. 
@@ -265,7 +269,9 @@ final class RealtimeAPIClient: ObservableObject {
     
     // MARK: - Public Methods
     
-    func connect() {
+    /// Connect to Realtime API
+    /// - Parameter threadId: Optional thread ID to resume an existing conversation
+    func connect(threadId: UUID? = nil) {
         guard connectionState == .disconnected || connectionState != .connecting else {
             logger.warning("Already connecting or connected")
             return
@@ -274,8 +280,22 @@ final class RealtimeAPIClient: ObservableObject {
         connectionState = .connecting
         logger.info("Connecting to Realtime API...")
         
-        // Create a new thread for this conversation
-        _ = ThreadsManager.shared.createThread()
+        // Handle thread: resume existing or create new
+        if let threadId = threadId,
+           let history = ThreadsManager.shared.resumeThread(id: threadId) {
+            continuationThreadId = threadId
+            historyToLoad = history
+            // Pre-populate messages array with history for UI
+            messages = history.map { stored in
+                ChatMessage(isUser: stored.isUser, text: stored.text)
+            }
+            logger.info("📜 Will continue thread \(threadId) with \(history.count) messages")
+        } else {
+            continuationThreadId = nil
+            historyToLoad = []
+            // Create a new thread for this conversation
+            _ = ThreadsManager.shared.createThread()
+        }
         
         // Also connect to glasses if registered
         if glassesManager.isRegistered && !glassesManager.connectionState.isConnected {
@@ -327,6 +347,8 @@ final class RealtimeAPIClient: ObservableObject {
         pendingAudioBufferCount = 0
         responseGenerationComplete = false
         isMuted = false
+        continuationThreadId = nil
+        historyToLoad = []
         
         // Also disconnect from glasses
         if glassesManager.connectionState.isConnected {
@@ -1218,6 +1240,35 @@ final class RealtimeAPIClient: ObservableObject {
         }
     }
     
+    /// Send conversation history to populate context when resuming a thread
+    private func sendConversationHistory(_ history: [StoredMessage]) {
+        logger.info("📜 Sending \(history.count) messages as conversation history")
+        
+        for message in history {
+            // For conversation.item.create: user uses "input_text", assistant uses "text"
+            let contentType = message.isUser ? "input_text" : "text"
+            let role = message.isUser ? "user" : "assistant"
+            
+            let event: [String: Any] = [
+                "type": "conversation.item.create",
+                "item": [
+                    "type": "message",
+                    "role": role,
+                    "content": [
+                        [
+                            "type": contentType,
+                            "text": message.text
+                        ] as [String: Any]
+                    ]
+                ] as [String: Any]
+            ]
+            
+            send(event: event)
+        }
+        
+        logger.info("📜 Conversation history sent")
+    }
+    
     private func receiveMessage() {
         webSocket?.receive { [weak self] result in
             guard let self = self else { return }
@@ -1272,6 +1323,13 @@ final class RealtimeAPIClient: ObservableObject {
         case "session.updated":
             isSessionConfigured = true
             logger.info("✅ Session configured")
+            
+            // Load conversation history if continuing a thread
+            if !historyToLoad.isEmpty {
+                sendConversationHistory(historyToLoad)
+                historyToLoad = []
+            }
+            
             // Auto-start listening after initial session configuration (not on settings updates)
             if voiceState == .idle {
                 startListening()

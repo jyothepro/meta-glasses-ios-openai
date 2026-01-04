@@ -14,6 +14,11 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glass
 
 struct ThreadsView: View {
     @ObservedObject private var threadsManager = ThreadsManager.shared
+    let onContinueThread: () -> Void
+    
+    init(onContinueThread: @escaping () -> Void = {}) {
+        self.onContinueThread = onContinueThread
+    }
     
     var body: some View {
         NavigationStack {
@@ -25,7 +30,8 @@ struct ThreadsView: View {
                         threads: threadsManager.threads,
                         onDelete: { thread in
                             threadsManager.deleteThread(id: thread.id)
-                        }
+                        },
+                        onContinue: onContinueThread
                     )
                 }
             }
@@ -63,6 +69,7 @@ private struct EmptyThreadsView: View {
 private struct ThreadsListContent: View {
     let threads: [ConversationThread]
     let onDelete: (ConversationThread) -> Void
+    let onContinue: () -> Void
     
     var body: some View {
         List {
@@ -83,7 +90,8 @@ private struct ThreadsListContent: View {
                 threadId: thread.id,
                 onDelete: {
                     onDelete(thread)
-                }
+                },
+                onContinue: onContinue
             )
         }
     }
@@ -125,6 +133,7 @@ private struct ThreadRow: View {
 struct ThreadDetailView: View {
     let threadId: UUID
     let onDelete: () -> Void
+    let onContinue: () -> Void
     
     @ObservedObject private var threadsManager = ThreadsManager.shared
     @Environment(\.dismiss) private var dismiss
@@ -136,7 +145,7 @@ struct ThreadDetailView: View {
     }
     
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if let thread = thread {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -159,6 +168,28 @@ struct ThreadDetailView: View {
                     }
                     .padding()
                 }
+                
+                // Continue button at bottom
+                VStack(spacing: 0) {
+                    Divider()
+                    Button(action: {
+                        threadsManager.pendingContinuationThreadId = threadId
+                        onContinue()
+                        dismiss()
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "play.fill")
+                            Text("Continue Discussion")
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .padding()
+                }
+                .background(Color(.systemBackground))
             } else {
                 Text("Thread not found")
                     .foregroundColor(.secondary)
