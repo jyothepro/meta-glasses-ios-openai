@@ -73,7 +73,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Main Settings
+                // AI Settings
                 Section {
                     NavigationLink {
                         AdditionalInstructionsView()
@@ -86,9 +86,11 @@ struct SettingsView: View {
                     } label: {
                         Label("Memories", systemImage: "brain")
                     }
+                } header: {
+                    Text("AI")
                 }
                 
-                // Developer Section
+                // Hardware Section
                 Section {
                     NavigationLink {
                         GlassesTab(glassesManager: glassesManager)
@@ -96,7 +98,7 @@ struct SettingsView: View {
                         Label("Glasses", systemImage: "eyeglasses")
                     }
                 } header: {
-                    Text("Developer")
+                    Text("Hardware")
                 }
                 
                 // App Info
