@@ -152,15 +152,17 @@ final class RealtimeAPIClient: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            Task { @MainActor in
-                self?.handleAudioInterruption(notification)
+            // Extract Sendable values before crossing isolation boundary
+            let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let optionsValue = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
+            Task { @MainActor [weak self] in
+                self?.handleAudioInterruption(typeValue: typeValue, optionsValue: optionsValue)
             }
         }
     }
     
-    private func handleAudioInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+    private func handleAudioInterruption(typeValue: UInt?, optionsValue: UInt?) {
+        guard let typeValue = typeValue,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
         }
@@ -168,7 +170,6 @@ final class RealtimeAPIClient: ObservableObject {
         switch type {
         case .began:
             logger.warning("⚠️ Audio session interrupted (call, other app, etc.)")
-            // Audio is interrupted - stop our audio processing
             if voiceState == .speaking {
                 stopPlayback()
                 pendingAudioBufferCount = 0
@@ -176,11 +177,9 @@ final class RealtimeAPIClient: ObservableObject {
             
         case .ended:
             logger.info("✅ Audio session interruption ended")
-            // Check if we should resume
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+            if let optionsValue = optionsValue {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 if options.contains(.shouldResume) {
-                    // Reactivate audio session
                     do {
                         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
                         logger.info("✅ Audio session reactivated after interruption")
@@ -205,6 +204,12 @@ final class RealtimeAPIClient: ObservableObject {
         
         connectionState = .connecting
         logger.info("Connecting to Realtime API...")
+        
+        // Also connect to glasses if registered
+        if glassesManager.isRegistered && !glassesManager.connectionState.isConnected {
+            logger.info("👓 Auto-connecting to glasses...")
+            glassesManager.startSearching()
+        }
         
         guard let url = URL(string: realtimeURL) else {
             connectionState = .error("Invalid URL")
@@ -244,6 +249,12 @@ final class RealtimeAPIClient: ObservableObject {
         pendingUserMessageId = nil
         pendingAudioBufferCount = 0
         responseGenerationComplete = false
+        
+        // Also disconnect from glasses
+        if glassesManager.connectionState.isConnected {
+            logger.info("👓 Auto-disconnecting from glasses...")
+            glassesManager.disconnect()
+        }
     }
     
     /// Start listening to microphone and streaming to OpenAI
@@ -487,7 +498,7 @@ final class RealtimeAPIClient: ObservableObject {
         // Completion handler for tracking actual playback completion
         // Uses @Sendable closure for thread safety
         let completionHandler: @Sendable (AVAudioPlayerNodeCompletionCallbackType) -> Void = { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.handleAudioBufferPlaybackComplete()
             }
         }
@@ -605,24 +616,36 @@ final class RealtimeAPIClient: ObservableObject {
         let context = recentTranscripts.suffix(maxRecentTranscripts).joined(separator: "\n")
         
         let prompt = """
-            You are an intent classifier for a voice assistant. Analyze if the user has finished their thought and expects an AI response.
+            You are an intent classifier for a voice assistant in Meta Ray-Ban smart glasses with a camera.
             
-            Recent conversation context:
-            \(context.isEmpty ? "(none)" : context)
+            The assistant can:
+            - Answer questions
+            - Take photos and describe what the user sees
+            - Have natural conversations
             
-            Current user utterance:
-            \(transcript)
+            Recent conversation:
+            \(context.isEmpty ? "(start of conversation)" : context)
             
-            Consider:
-            - Did the user ask a question?
-            - Did the user give a command or request?
-            - Did the user say a trigger word like "answer", "respond", "done", "ответь", "готово"?
-            - Is the sentence complete or does it seem like the user might continue?
-            - A pause or "hmm" or "let me think" means user is still thinking - don't respond yet.
+            User just said:
+            "\(transcript)"
             
-            Reply with ONLY one word: YES or NO
-            YES = user expects a response now
-            NO = user is still thinking or hasn't asked anything yet
+            Should the assistant respond NOW?
+            
+            Answer YES if:
+            - User asked ANY question (has "?" or question words like what/how/why/где/что/как/почему)
+            - User asked to see/look/describe something (visual request)
+            - User gave a command or request
+            - User greeted AND asked something ("Привет, что это?" = YES)
+            - The utterance is a complete thought that warrants a response
+            
+            Answer NO only if:
+            - User is clearly mid-sentence and paused (e.g., "I want to..." or "Мне нужно...")
+            - User said filler words only (e.g., "hmm", "let me think", "эээ", "так")
+            - User is talking to someone else (not the assistant)
+            
+            DEFAULT TO YES when uncertain. Questions always get YES.
+            
+            Reply with ONLY: YES or NO
             """
         
         do {
@@ -753,7 +776,7 @@ final class RealtimeAPIClient: ObservableObject {
     private func capturePhotoFromGlasses() async throws -> Data {
         return try await withCheckedThrowingContinuation { continuation in
             Task { @MainActor in
-                // Check if glasses are connected
+                // Check if glasses are registered
                 guard glassesManager.isRegistered else {
                     continuation.resume(throwing: NSError(
                         domain: "RealtimeAPI",
@@ -761,6 +784,25 @@ final class RealtimeAPIClient: ObservableObject {
                         userInfo: [NSLocalizedDescriptionKey: "Glasses not registered. Please register in the Glasses tab first."]
                     ))
                     return
+                }
+                
+                // Check if glasses are connected, try to connect if not
+                if !glassesManager.connectionState.isConnected {
+                    logger.info("👓 Glasses not connected, attempting to connect...")
+                    glassesManager.startSearching()
+                    
+                    // Wait a bit for connection
+                    try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                    
+                    // Check again after waiting
+                    if !glassesManager.connectionState.isConnected {
+                        continuation.resume(throwing: NSError(
+                            domain: "RealtimeAPI",
+                            code: 3,
+                            userInfo: [NSLocalizedDescriptionKey: "Could not connect to glasses. Make sure they are nearby and powered on."]
+                        ))
+                        return
+                    }
                 }
                 
                 // Start observing for new photos
