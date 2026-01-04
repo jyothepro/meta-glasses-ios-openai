@@ -28,6 +28,7 @@ fastlane/test_output/
 # IDE
 *.idea/
 *.hmap
+.vscode/
 
 # Playgrounds
 timeline.xctimeline
