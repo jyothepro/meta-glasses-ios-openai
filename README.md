@@ -21,7 +21,7 @@ Talk hands-free through your glasses. The AI hears you, sees what you see, and r
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/nicekurt/meta-glasses-ios-openai.git
+git clone https://github.com/kirill-markin/meta-glasses-ios-openai.git
 cd meta-glasses-ios-openai
 
 # Copy config templates
@@ -83,4 +83,4 @@ meta-glasses-ios-openai/
 
 ## Author
 
-**Kirill Markin** — [github.com/nicekurt](https://github.com/nicekurt)
+**Kirill Markin** — [github.com/kirill-markin](https://github.com/kirill-markin)
