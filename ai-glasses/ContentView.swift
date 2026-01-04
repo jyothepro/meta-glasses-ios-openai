@@ -14,13 +14,13 @@ import os.log
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "ContentView")
 
 enum AppTab: Int {
-    case glasses = 0
-    case voiceAgent = 1
+    case voiceAgent = 0
+    case glasses = 1
     
     var name: String {
         switch self {
-        case .glasses: return "Glasses"
         case .voiceAgent: return "Voice Agent"
+        case .glasses: return "Glasses"
         }
     }
 }
@@ -41,24 +41,24 @@ private struct LazyView<Content: View>: View {
 }
 
 struct ContentView: View {
-    @State private var selectedTab: AppTab = .glasses
+    @State private var selectedTab: AppTab = .voiceAgent
     @StateObject private var glassesManager = GlassesManager()
     
     var body: some View {
         Group {
             if glassesManager.isInitialized {
                 TabView(selection: $selectedTab) {
-                    GlassesTab(glassesManager: glassesManager)
-                        .tabItem {
-                            Label("Glasses", systemImage: "eyeglasses")
-                        }
-                        .tag(AppTab.glasses)
-                    
                     LazyView(VoiceAgentView(glassesManager: glassesManager))
                         .tabItem {
                             Label("Voice Agent", systemImage: "waveform.circle")
                         }
                         .tag(AppTab.voiceAgent)
+                    
+                    GlassesTab(glassesManager: glassesManager)
+                        .tabItem {
+                            Label("Glasses", systemImage: "eyeglasses")
+                        }
+                        .tag(AppTab.glasses)
                 }
                 .onChange(of: selectedTab) { oldValue, newValue in
                     logger.info("📑 Tab changed: \(oldValue.name) → \(newValue.name)")
