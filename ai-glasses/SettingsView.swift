@@ -61,6 +61,7 @@ private struct CustomTextView: UIViewRepresentable {
 
 struct SettingsView: View {
     @ObservedObject var glassesManager: GlassesManager
+    @ObservedObject private var permissionsManager = PermissionsManager.shared
     @State private var isRegeneratingTitles: Bool = false
     @State private var showingRegenerateResult: Bool = false
     @State private var regeneratedCount: Int = 0
@@ -104,7 +105,19 @@ struct SettingsView: View {
                     NavigationLink {
                         PermissionsView()
                     } label: {
-                        Label("Permissions", systemImage: "hand.raised")
+                        HStack {
+                            Label("Permissions", systemImage: "hand.raised")
+                            Spacer()
+                            if permissionsManager.missingRequiredPermissionsCount > 0 {
+                                Text("\(permissionsManager.missingRequiredPermissionsCount)")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            }
+                        }
                     }
                 } header: {
                     Text("Privacy")

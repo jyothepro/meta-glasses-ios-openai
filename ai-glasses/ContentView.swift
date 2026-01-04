@@ -47,6 +47,7 @@ struct LazyView<Content: View>: View {
 struct ContentView: View {
     @State private var selectedTab: AppTab = .voiceAgent
     @StateObject private var glassesManager = GlassesManager()
+    @ObservedObject private var permissionsManager = PermissionsManager.shared
     
     var body: some View {
         Group {
@@ -71,6 +72,9 @@ struct ContentView: View {
                             Label("Settings", systemImage: "gearshape")
                         }
                         .tag(AppTab.settings)
+                        .badge(permissionsManager.missingRequiredPermissionsCount > 0
+                               ? permissionsManager.missingRequiredPermissionsCount
+                               : 0)
                 }
                 .onChange(of: selectedTab) { oldValue, newValue in
                     logger.info("📑 Tab changed: \(oldValue.name) → \(newValue.name)")

@@ -140,6 +140,13 @@ final class PermissionsManager: NSObject, ObservableObject {
         }
     }
     
+    var missingRequiredPermissionsCount: Int {
+        PermissionType.allCases
+            .filter { $0.isRequired }
+            .filter { status(for: $0) != .authorized }
+            .count
+    }
+    
     // MARK: - Refresh All Statuses
     
     func refreshAll() {
