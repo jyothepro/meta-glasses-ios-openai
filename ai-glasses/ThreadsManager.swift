@@ -366,6 +366,9 @@ final class ThreadsManager: ObservableObject {
     }
     
     private func save() {
+        // Sort by updatedAt descending (newest first)
+        threads.sort { $0.updatedAt > $1.updatedAt }
+        
         do {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
