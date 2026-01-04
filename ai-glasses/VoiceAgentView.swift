@@ -28,8 +28,9 @@ struct VoiceAgentView: View {
                         // Transcript area
                         if client.connectionState == .connected {
                             TranscriptCard(
-                                userTranscript: client.userTranscript,
-                                assistantTranscript: client.assistantTranscript,
+                                messages: client.messages,
+                                currentUserTranscript: client.userTranscript,
+                                currentAssistantTranscript: client.assistantTranscript,
                                 voiceState: client.voiceState
                             )
                         }
@@ -146,8 +147,9 @@ private struct ConnectionStatusCard: View {
 // MARK: - Transcript Card
 
 private struct TranscriptCard: View {
-    let userTranscript: String
-    let assistantTranscript: String
+    let messages: [ChatMessage]
+    let currentUserTranscript: String
+    let currentAssistantTranscript: String
     let voiceState: VoiceState
     
     var body: some View {
@@ -155,7 +157,7 @@ private struct TranscriptCard: View {
             Text("Conversation")
                 .font(.headline)
             
-            if userTranscript.isEmpty && assistantTranscript.isEmpty {
+            if messages.isEmpty && currentUserTranscript.isEmpty {
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
@@ -171,22 +173,24 @@ private struct TranscriptCard: View {
                 .padding(.vertical, 32)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    // User message
-                    if !userTranscript.isEmpty {
+                    // All previous messages
+                    ForEach(messages) { message in
                         MessageBubble(
-                            text: userTranscript,
-                            isUser: true,
-                            isComplete: voiceState != .listening
+                            text: message.text,
+                            isUser: message.isUser,
+                            isComplete: true
                         )
                     }
                     
-                    // Assistant message
-                    if !assistantTranscript.isEmpty {
-                        MessageBubble(
-                            text: assistantTranscript,
-                            isUser: false,
-                            isComplete: voiceState == .idle
-                        )
+                    // Current streaming assistant transcript (before it's finalized)
+                    if voiceState == .speaking && !currentAssistantTranscript.isEmpty {
+                        if messages.last?.text != currentAssistantTranscript {
+                            MessageBubble(
+                                text: currentAssistantTranscript,
+                                isUser: false,
+                                isComplete: false
+                            )
+                        }
                     }
                     
                     // Processing indicator

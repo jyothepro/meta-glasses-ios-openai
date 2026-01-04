@@ -41,6 +41,22 @@ enum VoiceState: Equatable {
     case speaking
 }
 
+// MARK: - Chat Message
+
+struct ChatMessage: Identifiable, Equatable {
+    let id: UUID
+    let isUser: Bool
+    var text: String
+    let timestamp: Date
+    
+    init(isUser: Bool, text: String) {
+        self.id = UUID()
+        self.isUser = isUser
+        self.text = text
+        self.timestamp = Date()
+    }
+}
+
 // MARK: - Realtime API Client
 
 @MainActor
@@ -55,6 +71,7 @@ final class RealtimeAPIClient: ObservableObject {
     @Published private(set) var userTranscript: String = ""
     @Published private(set) var assistantTranscript: String = ""
     @Published private(set) var audioLevel: Float = 0.0
+    @Published private(set) var messages: [ChatMessage] = []
     
     // MARK: - Private Properties
     
@@ -135,6 +152,7 @@ final class RealtimeAPIClient: ObservableObject {
         voiceState = .idle
         userTranscript = ""
         assistantTranscript = ""
+        messages = []
     }
     
     /// Start listening to microphone and streaming to OpenAI
@@ -513,12 +531,14 @@ final class RealtimeAPIClient: ObservableObject {
         case "response.audio_transcript.done":
             if let transcript = json["transcript"] as? String {
                 assistantTranscript = transcript
+                messages.append(ChatMessage(isUser: false, text: transcript))
                 logger.info("🤖 Assistant: \(transcript)")
             }
             
         case "conversation.item.input_audio_transcription.completed":
             if let transcript = json["transcript"] as? String {
                 userTranscript = transcript
+                messages.append(ChatMessage(isUser: true, text: transcript))
                 logger.info("👤 User: \(transcript)")
             }
             
