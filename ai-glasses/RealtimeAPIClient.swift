@@ -451,8 +451,11 @@ final class RealtimeAPIClient: ObservableObject {
                     self.receiveMessage()
                     
                 case .failure(let error):
-                    self.logger.error("Receive error: \(error.localizedDescription)")
-                    self.connectionState = .error(error.localizedDescription)
+                    // Ignore errors when we're already disconnected (expected on manual disconnect)
+                    if self.connectionState != .disconnected {
+                        self.logger.error("Receive error: \(error.localizedDescription)")
+                        self.connectionState = .error(error.localizedDescription)
+                    }
                 }
             }
         }
