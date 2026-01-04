@@ -220,7 +220,7 @@ final class RealtimeAPIClient: ObservableObject {
             return
         }
         
-        let systemInstructions = baseInstructions + generateContextInfo() + SettingsManager.shared.generateInstructionsAddendum()
+        let systemInstructions = baseInstructions + generateContextInfo() + ThreadsManager.shared.generateConversationHistoryContext() + SettingsManager.shared.generateInstructionsAddendum()
         
         let updateEvent: [String: Any] = [
             "type": "session.update",
@@ -1168,8 +1168,8 @@ final class RealtimeAPIClient: ObservableObject {
     private func configureSession() async {
         logger.info("Configuring session...")
         
-        // Append time context, user memories, and additional instructions from settings
-        let systemInstructions = baseInstructions + generateContextInfo() + SettingsManager.shared.generateInstructionsAddendum()
+        // Append time context, conversation history, user memories, and additional instructions from settings
+        let systemInstructions = baseInstructions + generateContextInfo() + ThreadsManager.shared.generateConversationHistoryContext() + SettingsManager.shared.generateInstructionsAddendum()
         
         let takePhotoTool: [String: Any] = [
             "type": "function",

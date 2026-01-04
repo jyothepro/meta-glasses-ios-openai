@@ -154,15 +154,101 @@ final class ThreadsManager: ObservableObject {
         if threads[index].messages.isEmpty {
             threads.remove(at: index)
             logger.info("🗑️ Deleted empty thread: \(threadId)")
-        } else {
-            // Make sure title is generated from content
-            threads[index].generateTitleFromFirstMessage()
-            threads[index].updatedAt = Date()
-            logger.info("✅ Finalized thread: \(threadId) with \(self.threads[index].messages.count) messages")
+            activeThreadId = nil
+            save()
+            return
         }
         
+        // Thread has messages - update timestamp and generate AI title
+        threads[index].updatedAt = Date()
+        let messages = threads[index].messages
         activeThreadId = nil
         save()
+        
+        logger.info("✅ Finalized thread: \(threadId) with \(messages.count) messages")
+        
+        // Fire async task to generate better title via AI
+        Task {
+            await generateAndUpdateThreadTitle(threadId: threadId, messages: messages)
+        }
+    }
+    
+    /// Generate a concise thread title using gpt-4o-mini
+    private func generateAndUpdateThreadTitle(threadId: UUID, messages: [StoredMessage]) async {
+        // Build conversation context for the model
+        var conversationText = ""
+        for message in messages.prefix(20) { // Limit to first 20 messages to save tokens
+            let role = message.isUser ? "User" : "Assistant"
+            conversationText += "\(role): \(message.text)\n"
+        }
+        
+        let prompt = """
+        Based on this conversation, generate a very short title (4-5 words max) that captures the main topic. 
+        Return ONLY the title, no quotes, no explanation.
+        
+        Conversation:
+        \(conversationText)
+        """
+        
+        guard let title = await callGPT4oMini(prompt: prompt) else {
+            logger.warning("⚠️ Failed to generate AI title for thread \(threadId)")
+            return
+        }
+        
+        // Update thread title
+        guard let index = threads.firstIndex(where: { $0.id == threadId }) else {
+            logger.warning("⚠️ Thread \(threadId) not found for title update")
+            return
+        }
+        
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTitle.isEmpty else { return }
+        
+        threads[index].title = cleanTitle
+        save()
+        logger.info("📝 Updated thread title to: \(cleanTitle)")
+    }
+    
+    /// Call gpt-4o-mini for quick text generation
+    private func callGPT4oMini(prompt: String) async -> String? {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(Config.openAIAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "user", "content": prompt]
+            ],
+            "max_tokens": 30,
+            "temperature": 0.3
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                logger.error("❌ GPT-4o-mini API error: status \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
+            }
+            
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
+                logger.error("❌ Failed to parse GPT-4o-mini response")
+                return nil
+            }
+            
+            return content
+        } catch {
+            logger.error("❌ GPT-4o-mini request failed: \(error.localizedDescription)")
+            return nil
+        }
     }
     
     /// Delete a thread by ID
@@ -178,6 +264,57 @@ final class ThreadsManager: ObservableObject {
     /// Get thread by ID
     func thread(id: UUID) -> ConversationThread? {
         threads.first { $0.id == id }
+    }
+    
+    // MARK: - Conversation Statistics
+    
+    /// Generate conversation history statistics for AI context
+    func generateConversationHistoryContext() -> String {
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Formatter for local time without seconds/milliseconds (e.g., "2026-01-04T15:30+03:00")
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mmXXXXX"
+        dateFormatter.timeZone = TimeZone.current
+        
+        // Today's threads (last activity was today in local time)
+        let startOfToday = calendar.startOfDay(for: now)
+        let todayThreads = threads.filter { $0.updatedAt >= startOfToday }
+        
+        // Last 7 days (including today)
+        guard let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: startOfToday) else {
+            return ""
+        }
+        let last7DaysCount = threads.filter { $0.updatedAt >= sevenDaysAgo }.count
+        
+        // Last 30 days (including today)
+        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: startOfToday) else {
+            return ""
+        }
+        let last30DaysCount = threads.filter { $0.updatedAt >= thirtyDaysAgo }.count
+        
+        // Total count
+        let totalCount = threads.count
+        
+        // Build context string
+        var context = "\n\n# Conversation History Stats"
+        
+        if todayThreads.isEmpty {
+            context += "\nToday's conversations: none"
+        } else {
+            context += "\nToday's conversations:"
+            for thread in todayThreads.sorted(by: { $0.updatedAt > $1.updatedAt }) {
+                let timeStr = dateFormatter.string(from: thread.updatedAt)
+                context += "\n- \"\(thread.title)\" (last activity: \(timeStr))"
+            }
+        }
+        
+        context += "\nConversations in last 7 days: \(last7DaysCount)"
+        context += "\nConversations in last 30 days: \(last30DaysCount)"
+        context += "\nTotal conversations: \(totalCount)"
+        
+        return context
     }
     
     /// Resume an existing thread (set it as active for continuation)
