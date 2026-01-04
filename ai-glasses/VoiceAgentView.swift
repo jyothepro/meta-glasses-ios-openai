@@ -34,11 +34,6 @@ struct VoiceAgentView: View {
                                 voiceState: client.voiceState
                             )
                         }
-                        
-                        // Debug info
-                        if !client.lastServerEvent.isEmpty {
-                            DebugInfoCard(lastEvent: client.lastServerEvent)
-                        }
                     }
                     .padding()
                 }
@@ -400,29 +395,6 @@ private struct MicrophoneButton: View {
         case .processing: return "ellipsis"
         case .speaking: return "speaker.wave.2.fill"
         }
-    }
-}
-
-// MARK: - Debug Info Card
-
-private struct DebugInfoCard: View {
-    let lastEvent: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "arrow.down.circle")
-                .foregroundColor(.blue)
-            Text("Last event:")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(lastEvent)
-                .font(.caption.monospaced())
-                .foregroundColor(.primary)
-            Spacer()
-        }
-        .padding()
-        .background(Color(.tertiarySystemBackground))
-        .cornerRadius(8)
     }
 }
 
