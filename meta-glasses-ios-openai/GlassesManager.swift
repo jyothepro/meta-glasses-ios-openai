@@ -1,6 +1,6 @@
 //
 //  GlassesManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
@@ -17,7 +17,7 @@ import os.log
 // MARK: - Logging
 
 private enum Log {
-    nonisolated static let glasses = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "GlassesManager")
+    nonisolated static let glasses = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "GlassesManager")
 }
 
 // MARK: - Media Item

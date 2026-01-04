@@ -1,6 +1,6 @@
 //
 //  SoundManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  System sound notifications for Voice Agent events
 //
@@ -12,7 +12,7 @@ import os.log
 final class SoundManager {
     static let shared = SoundManager()
     
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "SoundManager")
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "SoundManager")
     
     // Keep engine alive during playback
     private var activeEngine: AVAudioEngine?

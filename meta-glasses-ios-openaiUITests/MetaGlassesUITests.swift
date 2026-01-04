@@ -1,13 +1,13 @@
 //
-//  ai_glassesUITests.swift
-//  ai-glassesUITests
+//  MetaGlassesUITests.swift
+//  meta-glasses-ios-openaiUITests
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
 
 import XCTest
 
-final class ai_glassesUITests: XCTestCase {
+final class MetaGlassesUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

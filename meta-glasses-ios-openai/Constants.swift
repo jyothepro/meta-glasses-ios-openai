@@ -1,6 +1,6 @@
 //
 //  Constants.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  App-wide constants (non-secret values)
 //

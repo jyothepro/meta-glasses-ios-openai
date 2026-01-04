@@ -18,50 +18,51 @@
 			containerPortal = EDEF71B22F099F7900B9B793 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDEF71B92F099F7900B9B793;
-			remoteInfo = "ai-glasses";
+			remoteInfo = "meta-glasses-ios-openai";
 		};
 		EDEF71D62F099F7B00B9B793 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EDEF71B22F099F7900B9B793 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDEF71B92F099F7900B9B793;
-			remoteInfo = "ai-glasses";
+			remoteInfo = "meta-glasses-ios-openai";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		EDEF71BA2F099F7900B9B793 /* ai-glasses.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ai-glasses.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDEF71CB2F099F7B00B9B793 /* ai-glassesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ai-glassesTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDEF71D52F099F7B00B9B793 /* ai-glassesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ai-glassesUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDCF00002F0A000000000001 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		EDEF71BA2F099F7900B9B793 /* meta-glasses-ios-openai.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "meta-glasses-ios-openai.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDEF71CB2F099F7B00B9B793 /* meta-glasses-ios-openaiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "meta-glasses-ios-openaiTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDEF71D52F099F7B00B9B793 /* meta-glasses-ios-openaiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "meta-glasses-ios-openaiUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		EDEF71DD2F099F7B00B9B793 /* Exceptions for "ai-glasses" folder in "ai-glasses" target */ = {
+		EDEF71DD2F099F7B00B9B793 /* Exceptions for "meta-glasses-ios-openai" folder in "meta-glasses-ios-openai" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = EDEF71B92F099F7900B9B793 /* ai-glasses */;
+			target = EDEF71B92F099F7900B9B793 /* meta-glasses-ios-openai */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EDEF71BC2F099F7900B9B793 /* ai-glasses */ = {
+		EDEF71BC2F099F7900B9B793 /* meta-glasses-ios-openai */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				EDEF71DD2F099F7B00B9B793 /* Exceptions for "ai-glasses" folder in "ai-glasses" target */,
+				EDEF71DD2F099F7B00B9B793 /* Exceptions for "meta-glasses-ios-openai" folder in "meta-glasses-ios-openai" target */,
 			);
-			path = "ai-glasses";
+			path = "meta-glasses-ios-openai";
 			sourceTree = "<group>";
 		};
-		EDEF71CE2F099F7B00B9B793 /* ai-glassesTests */ = {
+		EDEF71CE2F099F7B00B9B793 /* meta-glasses-ios-openaiTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "ai-glassesTests";
+			path = "meta-glasses-ios-openaiTests";
 			sourceTree = "<group>";
 		};
-		EDEF71D82F099F7B00B9B793 /* ai-glassesUITests */ = {
+		EDEF71D82F099F7B00B9B793 /* meta-glasses-ios-openaiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "ai-glassesUITests";
+			path = "meta-glasses-ios-openaiUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -97,9 +98,10 @@
 		EDEF71B12F099F7900B9B793 = {
 			isa = PBXGroup;
 			children = (
-				EDEF71BC2F099F7900B9B793 /* ai-glasses */,
-				EDEF71CE2F099F7B00B9B793 /* ai-glassesTests */,
-				EDEF71D82F099F7B00B9B793 /* ai-glassesUITests */,
+				EDCF00002F0A000000000001 /* Config.xcconfig */,
+				EDEF71BC2F099F7900B9B793 /* meta-glasses-ios-openai */,
+				EDEF71CE2F099F7B00B9B793 /* meta-glasses-ios-openaiTests */,
+				EDEF71D82F099F7B00B9B793 /* meta-glasses-ios-openaiUITests */,
 				EDEF71BB2F099F7900B9B793 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -107,9 +109,9 @@
 		EDEF71BB2F099F7900B9B793 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EDEF71BA2F099F7900B9B793 /* ai-glasses.app */,
-				EDEF71CB2F099F7B00B9B793 /* ai-glassesTests.xctest */,
-				EDEF71D52F099F7B00B9B793 /* ai-glassesUITests.xctest */,
+				EDEF71BA2F099F7900B9B793 /* meta-glasses-ios-openai.app */,
+				EDEF71CB2F099F7B00B9B793 /* meta-glasses-ios-openaiTests.xctest */,
+				EDEF71D52F099F7B00B9B793 /* meta-glasses-ios-openaiUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -117,9 +119,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EDEF71B92F099F7900B9B793 /* ai-glasses */ = {
+		EDEF71B92F099F7900B9B793 /* meta-glasses-ios-openai */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDEF71DE2F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glasses" */;
+			buildConfigurationList = EDEF71DE2F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openai" */;
 			buildPhases = (
 				EDEF71B62F099F7900B9B793 /* Sources */,
 				EDEF71B72F099F7900B9B793 /* Frameworks */,
@@ -130,21 +132,21 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EDEF71BC2F099F7900B9B793 /* ai-glasses */,
+				EDEF71BC2F099F7900B9B793 /* meta-glasses-ios-openai */,
 			);
-			name = "ai-glasses";
+			name = "meta-glasses-ios-openai";
 			packageProductDependencies = (
 				EDEF71EA2F09AD9200B9B793 /* MWDATCamera */,
 				EDEF71EC2F09AD9200B9B793 /* MWDATCore */,
 				EDEF71EE2F09AD9200B9B793 /* MWDATMockDevice */,
 			);
-			productName = "ai-glasses";
-			productReference = EDEF71BA2F099F7900B9B793 /* ai-glasses.app */;
+			productName = "meta-glasses-ios-openai";
+			productReference = EDEF71BA2F099F7900B9B793 /* meta-glasses-ios-openai.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EDEF71CA2F099F7B00B9B793 /* ai-glassesTests */ = {
+		EDEF71CA2F099F7B00B9B793 /* meta-glasses-ios-openaiTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDEF71E32F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glassesTests" */;
+			buildConfigurationList = EDEF71E32F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openaiTests" */;
 			buildPhases = (
 				EDEF71C72F099F7B00B9B793 /* Sources */,
 				EDEF71C82F099F7B00B9B793 /* Frameworks */,
@@ -156,18 +158,18 @@
 				EDEF71CD2F099F7B00B9B793 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDEF71CE2F099F7B00B9B793 /* ai-glassesTests */,
+				EDEF71CE2F099F7B00B9B793 /* meta-glasses-ios-openaiTests */,
 			);
-			name = "ai-glassesTests";
+			name = "meta-glasses-ios-openaiTests";
 			packageProductDependencies = (
 			);
-			productName = "ai-glassesTests";
-			productReference = EDEF71CB2F099F7B00B9B793 /* ai-glassesTests.xctest */;
+			productName = "meta-glasses-ios-openaiTests";
+			productReference = EDEF71CB2F099F7B00B9B793 /* meta-glasses-ios-openaiTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EDEF71D42F099F7B00B9B793 /* ai-glassesUITests */ = {
+		EDEF71D42F099F7B00B9B793 /* meta-glasses-ios-openaiUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDEF71E62F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glassesUITests" */;
+			buildConfigurationList = EDEF71E62F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openaiUITests" */;
 			buildPhases = (
 				EDEF71D12F099F7B00B9B793 /* Sources */,
 				EDEF71D22F099F7B00B9B793 /* Frameworks */,
@@ -179,13 +181,13 @@
 				EDEF71D72F099F7B00B9B793 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDEF71D82F099F7B00B9B793 /* ai-glassesUITests */,
+				EDEF71D82F099F7B00B9B793 /* meta-glasses-ios-openaiUITests */,
 			);
-			name = "ai-glassesUITests";
+			name = "meta-glasses-ios-openaiUITests";
 			packageProductDependencies = (
 			);
-			productName = "ai-glassesUITests";
-			productReference = EDEF71D52F099F7B00B9B793 /* ai-glassesUITests.xctest */;
+			productName = "meta-glasses-ios-openaiUITests";
+			productReference = EDEF71D52F099F7B00B9B793 /* meta-glasses-ios-openaiUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -211,7 +213,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EDEF71B52F099F7900B9B793 /* Build configuration list for PBXProject "ai-glasses" */;
+			buildConfigurationList = EDEF71B52F099F7900B9B793 /* Build configuration list for PBXProject "meta-glasses-ios-openai" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -228,9 +230,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EDEF71B92F099F7900B9B793 /* ai-glasses */,
-				EDEF71CA2F099F7B00B9B793 /* ai-glassesTests */,
-				EDEF71D42F099F7B00B9B793 /* ai-glassesUITests */,
+				EDEF71B92F099F7900B9B793 /* meta-glasses-ios-openai */,
+				EDEF71CA2F099F7B00B9B793 /* meta-glasses-ios-openaiTests */,
+				EDEF71D42F099F7B00B9B793 /* meta-glasses-ios-openaiUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -286,12 +288,12 @@
 /* Begin PBXTargetDependency section */
 		EDEF71CD2F099F7B00B9B793 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDEF71B92F099F7900B9B793 /* ai-glasses */;
+			target = EDEF71B92F099F7900B9B793 /* meta-glasses-ios-openai */;
 			targetProxy = EDEF71CC2F099F7B00B9B793 /* PBXContainerItemProxy */;
 		};
 		EDEF71D72F099F7B00B9B793 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDEF71B92F099F7900B9B793 /* ai-glasses */;
+			target = EDEF71B92F099F7900B9B793 /* meta-glasses-ios-openai */;
 			targetProxy = EDEF71D62F099F7B00B9B793 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -299,16 +301,16 @@
 /* Begin XCBuildConfiguration section */
 		EDEF71DF2F099F7B00B9B793 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EDCF00002F0A000000000001 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ai-glasses/ai_glasses.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "meta-glasses-ios-openai/meta_glasses_ios_openai.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "ai-glasses/Info.plist";
+				INFOPLIST_FILE = "meta-glasses-ios-openai/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -319,7 +321,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kirillmarkin.aiglasses;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -333,16 +334,16 @@
 		};
 		EDEF71E02F099F7B00B9B793 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EDCF00002F0A000000000001 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ai-glasses/ai_glasses.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "meta-glasses-ios-openai/meta_glasses_ios_openai.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "ai-glasses/Info.plist";
+				INFOPLIST_FILE = "meta-glasses-ios-openai/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -353,7 +354,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kirillmarkin.aiglasses;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -367,6 +367,7 @@
 		};
 		EDEF71E12F099F7B00B9B793 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EDCF00002F0A000000000001 /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -400,7 +401,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -431,6 +431,7 @@
 		};
 		EDEF71E22F099F7B00B9B793 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EDCF00002F0A000000000001 /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -464,7 +465,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -492,11 +492,10 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "kirill-markin.ai-glassesTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -504,7 +503,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ai-glasses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ai-glasses";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/meta-glasses-ios-openai.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/meta-glasses-ios-openai";
 			};
 			name = Debug;
 		};
@@ -514,11 +513,10 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "kirill-markin.ai-glassesTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -526,7 +524,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ai-glasses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ai-glasses";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/meta-glasses-ios-openai.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/meta-glasses-ios-openai";
 			};
 			name = Release;
 		};
@@ -535,10 +533,9 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "kirill-markin.ai-glassesUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -546,7 +543,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "ai-glasses";
+				TEST_TARGET_NAME = "meta-glasses-ios-openai";
 			};
 			name = Debug;
 		};
@@ -555,10 +552,9 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KHMPZ765AS;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "kirill-markin.ai-glassesUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(PRODUCT_BUNDLE_IDENTIFIER).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -566,14 +562,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "ai-glasses";
+				TEST_TARGET_NAME = "meta-glasses-ios-openai";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EDEF71B52F099F7900B9B793 /* Build configuration list for PBXProject "ai-glasses" */ = {
+		EDEF71B52F099F7900B9B793 /* Build configuration list for PBXProject "meta-glasses-ios-openai" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDEF71E12F099F7B00B9B793 /* Debug */,
@@ -582,7 +578,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EDEF71DE2F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glasses" */ = {
+		EDEF71DE2F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openai" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDEF71DF2F099F7B00B9B793 /* Debug */,
@@ -591,7 +587,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EDEF71E32F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glassesTests" */ = {
+		EDEF71E32F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openaiTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDEF71E42F099F7B00B9B793 /* Debug */,
@@ -600,7 +596,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EDEF71E62F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "ai-glassesUITests" */ = {
+		EDEF71E62F099F7B00B9B793 /* Build configuration list for PBXNativeTarget "meta-glasses-ios-openaiUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDEF71E72F099F7B00B9B793 /* Debug */,

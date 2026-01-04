@@ -1,0 +1,23 @@
+// Configuration settings for meta-glasses-ios-openai
+// Copy this file to Config.xcconfig and fill in your values
+//
+// IMPORTANT: Config.xcconfig is gitignored - your values stay private
+//
+// These values are used throughout the project:
+// - PRODUCT_BUNDLE_IDENTIFIER: App bundle ID for iOS
+// - DEVELOPMENT_TEAM: Your Apple Developer Team ID for code signing
+// - META_APP_ID: Used in Info.plist for Meta Wearables SDK
+// - APP_LINK_URL_SCHEME: URL scheme for Meta AI app callbacks
+
+// Your Bundle Identifier (register at https://developer.apple.com)
+PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.metaglasses
+
+// Your Apple Developer Team ID (find at https://developer.apple.com/account)
+DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
+
+// Your Meta App ID (register at https://developer.meta.com)
+// This is used for Meta Wearables Device Access Toolkit
+META_APP_ID = YOUR_META_APP_ID_HERE
+
+// Your App Link URL Scheme (should match bundle identifier pattern)
+APP_LINK_URL_SCHEME = com.yourcompany.metaglasses

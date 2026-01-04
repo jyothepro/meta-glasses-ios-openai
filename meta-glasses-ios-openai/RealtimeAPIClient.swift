@@ -1,6 +1,6 @@
 //
 //  RealtimeAPIClient.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  WebSocket client for OpenAI Realtime API with audio capture and playback
 //
@@ -78,7 +78,7 @@ final class RealtimeAPIClient: ObservableObject {
     
     private var webSocket: URLSessionWebSocketTask?
     private let apiKey: String
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "RealtimeAPI")
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "RealtimeAPI")
     
     private let realtimeURL = Constants.realtimeAPIURL
     
@@ -781,15 +781,15 @@ final class RealtimeAPIClient: ObservableObject {
             Should the assistant respond NOW?
             
             Answer YES if:
-            - User asked ANY question (has "?" or question words like what/how/why/где/что/как/почему)
+            - User asked ANY question (has "?" or question words like what/how/why/where)
             - User asked to see/look/describe something (visual request)
             - User gave a command or request
-            - User greeted AND asked something ("Привет, что это?" = YES)
+            - User greeted AND asked something ("Hi, what is this?" = YES)
             - The utterance is a complete thought that warrants a response
             
             Answer NO only if:
-            - User is clearly mid-sentence and paused (e.g., "I want to..." or "Мне нужно...")
-            - User said filler words only (e.g., "hmm", "let me think", "эээ", "так")
+            - User is clearly mid-sentence and paused (e.g., "I want to..." or "I need to...")
+            - User said filler words only (e.g., "hmm", "let me think", "uh", "well")
             - User is talking to someone else (not the assistant)
             
             DEFAULT TO YES when uncertain. Questions always get YES.
@@ -806,7 +806,7 @@ final class RealtimeAPIClient: ObservableObject {
             logger.warning("⚠️ Intent classifier failed: \(error.localizedDescription), falling back to simple heuristics")
             // Fallback: check for question marks or common trigger phrases
             return transcript.contains("?") || 
-                   transcript.lowercased().contains("ответь") ||
+                   transcript.lowercased().contains("respond") ||
                    transcript.lowercased().contains("done") ||
                    transcript.lowercased().contains("answer")
         }

@@ -1,6 +1,6 @@
 //
 //  PermissionsManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Centralized permissions tracking and management
 //
@@ -14,7 +14,7 @@ import CoreLocation
 import UIKit
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "Permissions")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "Permissions")
 
 // MARK: - Permission Status
 

@@ -1,6 +1,6 @@
 //
 //  ThreadsManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Manages conversation thread persistence and history
 //
@@ -9,7 +9,7 @@ import Foundation
 import Combine
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "ThreadsManager")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "ThreadsManager")
 
 // MARK: - Data Models
 
@@ -184,7 +184,7 @@ final class ThreadsManager: ObservableObject {
         
         let prompt = """
         Generate a title for this conversation (4 words max).
-        Use the SAME LANGUAGE as the conversation (Russian title for Russian chat, English for English, etc.).
+        Use the SAME LANGUAGE as the conversation (match the title language to the conversation language).
         Only the essence - specific topic/subject discussed.
         Use SHORT words - avoid long descriptive words.
         Examples: "location" not "geolocation", "place" not "whereabouts", "fix" not "troubleshooting".

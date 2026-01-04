@@ -1,6 +1,6 @@
 //
-//  ai_glassesApp.swift
-//  ai-glasses
+//  MetaGlassesApp.swift
+//  meta-glasses-ios-openai
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
@@ -9,10 +9,10 @@ import SwiftUI
 import MWDATCore
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "App")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "App")
 
 @main
-struct ai_glassesApp: App {
+struct MetaGlassesApp: App {
     
     init() {
         logger.info("🚀 App starting...")

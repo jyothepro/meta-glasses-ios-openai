@@ -48,7 +48,7 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.kirillmarkin.aiglasses</string>
+				<string>$(APP_LINK_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
@@ -67,9 +67,9 @@
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>com.kirillmarkin.aiglasses://</string>
+		<string>$(APP_LINK_URL_SCHEME)://</string>
 		<key>MetaAppID</key>
-		<string>1384258770148195</string>
+		<string>$(META_APP_ID)</string>
 		<key>Analytics</key>
 		<dict>
 			<key>OptOut</key>

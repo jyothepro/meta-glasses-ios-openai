@@ -1,6 +1,6 @@
 //
 //  SettingsManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Created by AI Assistant on 04/01/2026.
 //
@@ -9,7 +9,7 @@ import Foundation
 import Combine
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "SettingsManager")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "SettingsManager")
 
 // MARK: - Settings Data Model
 

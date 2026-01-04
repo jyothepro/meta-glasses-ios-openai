@@ -44,3 +44,7 @@ playground.xcworkspace
 
 # Secrets
 ai-glasses/Config.swift
+
+# New secrets
+meta-glasses-ios-openai/Config.swift
+Config.xcconfig

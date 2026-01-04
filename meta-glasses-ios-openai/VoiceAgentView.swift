@@ -1,6 +1,6 @@
 //
 //  VoiceAgentView.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Voice Agent tab with OpenAI Realtime API integration
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "VoiceAgentView")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "VoiceAgentView")
 
 // MARK: - Scroll Position Tracking
 

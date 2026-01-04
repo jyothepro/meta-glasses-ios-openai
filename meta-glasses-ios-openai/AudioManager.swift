@@ -1,6 +1,6 @@
 //
 //  AudioManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
@@ -9,7 +9,7 @@ import Foundation
 import AVFoundation
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "AudioManager")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "AudioManager")
 
 // MARK: - Audio Recording State
 

@@ -1,14 +1,14 @@
 //
-//  ai_glassesTests.swift
-//  ai-glassesTests
+//  MetaGlassesTests.swift
+//  meta-glasses-ios-openaiTests
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
 
 import Testing
-@testable import ai_glasses
+@testable import meta_glasses_ios_openai
 
-struct ai_glassesTests {
+struct MetaGlassesTests {
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.

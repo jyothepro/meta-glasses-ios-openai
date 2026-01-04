@@ -1,6 +1,6 @@
 //
 //  ThreadsView.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Thread history list and detail views
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "ThreadsView")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "ThreadsView")
 
 // MARK: - Threads List View
 

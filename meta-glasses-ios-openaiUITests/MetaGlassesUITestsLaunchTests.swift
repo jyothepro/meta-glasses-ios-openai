@@ -1,13 +1,13 @@
 //
-//  ai_glassesUITestsLaunchTests.swift
-//  ai-glassesUITests
+//  MetaGlassesUITestsLaunchTests.swift
+//  meta-glasses-ios-openaiUITests
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
 
 import XCTest
 
-final class ai_glassesUITestsLaunchTests: XCTestCase {
+final class MetaGlassesUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

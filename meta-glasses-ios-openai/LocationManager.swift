@@ -1,6 +1,6 @@
 //
 //  LocationManager.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Manages location permissions and geocoding for context-aware AI
 //
@@ -20,7 +20,7 @@ final class LocationManager: NSObject, ObservableObject {
     @Published private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
     
     private let locationManager = CLLocationManager()
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "Location")
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "Location")
     private var lastGeocodedLocation: CLLocation?
     
     private override init() {

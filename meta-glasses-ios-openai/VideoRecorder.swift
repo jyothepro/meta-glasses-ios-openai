@@ -1,6 +1,6 @@
 //
 //  VideoRecorder.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Created by Kirill Markin on 03/01/2026.
 //
@@ -10,7 +10,7 @@ import AVFoundation
 import UIKit
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "VideoRecorder")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "VideoRecorder")
 
 // MARK: - Recording State
 
@@ -38,7 +38,7 @@ final class VideoRecorder: @unchecked Sendable {
     private var startTime: CMTime?
     private var frameCount: Int = 0
     
-    private let recordingQueue = DispatchQueue(label: "com.kirillmarkin.aiglasses.recording")
+    private let recordingQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "app").recording")
     
     private var videoSize: CGSize = .zero
     private var frameRate: Int = 24

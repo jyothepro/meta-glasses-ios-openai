@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  ai-glasses
+//  meta-glasses-ios-openai
 //
 //  Created by AI Assistant on 04/01/2026.
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "SettingsView")
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "SettingsView")
 
 // MARK: - Custom TextView (avoids SwiftUI TextEditor frame bugs)
 

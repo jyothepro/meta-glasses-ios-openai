@@ -1,12 +1,27 @@
-# AI Glasses
+# Meta Glasses iOS OpenAI
 
-iOS app for experimenting with Meta smart glasses.
+iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 
 ## Stack
 
 - Swift 5 / SwiftUI
 - Meta Wearables Device Access Toolkit (MWDATCore, MWDATCamera)
+- OpenAI Realtime API (GPT-4o voice)
 - Bluetooth LE for glasses connection
+
+## Quick Start
+
+1. Copy config files:
+   - `Config.xcconfig.example` → `Config.xcconfig`
+   - `meta-glasses-ios-openai/Config.swift.example` → `meta-glasses-ios-openai/Config.swift`
+
+2. Fill in your credentials:
+   - `Config.xcconfig`: Bundle ID, Meta App ID
+   - `Config.swift`: OpenAI API key
+
+3. Open `meta-glasses-ios-openai.xcodeproj` in Xcode
+
+4. Build and run on physical iOS device
 
 ## SDK Documentation
 
@@ -30,7 +45,7 @@ iOS app for experimenting with Meta smart glasses.
 ### Voice Agent Tab
 - `RealtimeAPIClient` - WebSocket client for OpenAI Realtime API with audio capture/playback
 - `VoiceAgentView` - UI for voice conversations with OpenAI
-- `Config` - API keys (copy `Config.swift.example` → `Config.swift`)
+- `Config` - API keys (copy `meta-glasses-ios-openai/Config.swift.example` → `meta-glasses-ios-openai/Config.swift`)
 
 ### Threads Tab
 - `ThreadsManager` - singleton for conversation history persistence to Documents/threads.json
@@ -76,5 +91,6 @@ iOS app for experimenting with Meta smart glasses.
 ## Requirements
 
 - Physical iOS device (simulator doesn't support Bluetooth)
-- Meta AI glasses paired with device
-- MetaAppID from https://developer.meta.com (add to Info.plist)
+- Meta Ray-Ban smart glasses paired with device
+- Meta App ID from https://developer.meta.com
+- OpenAI API key with Realtime API access
