@@ -164,6 +164,15 @@ final class RealtimeAPIClient: ObservableObject {
         - When providing search results, summarize the key information concisely
         """
     
+    /// Generate current time context string with timezone in ISO-8601 format
+    private func generateTimeContext() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone.current
+        
+        return "\n\nCurrent time: \(formatter.string(from: Date()))"
+    }
+    
     // MARK: - Initialization
     
     init(apiKey: String, glassesManager: GlassesManager) {
@@ -205,7 +214,7 @@ final class RealtimeAPIClient: ObservableObject {
             return
         }
         
-        let systemInstructions = baseInstructions + SettingsManager.shared.generateInstructionsAddendum()
+        let systemInstructions = baseInstructions + generateTimeContext() + SettingsManager.shared.generateInstructionsAddendum()
         
         let updateEvent: [String: Any] = [
             "type": "session.update",
@@ -1150,8 +1159,8 @@ final class RealtimeAPIClient: ObservableObject {
     private func configureSession() async {
         logger.info("Configuring session...")
         
-        // Append user memories and additional instructions from settings
-        let systemInstructions = baseInstructions + SettingsManager.shared.generateInstructionsAddendum()
+        // Append time context, user memories, and additional instructions from settings
+        let systemInstructions = baseInstructions + generateTimeContext() + SettingsManager.shared.generateInstructionsAddendum()
         
         let takePhotoTool: [String: Any] = [
             "type": "function",
