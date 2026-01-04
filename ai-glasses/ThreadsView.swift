@@ -195,7 +195,7 @@ struct ThreadDetailView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .navigationTitle("Conversation")
+        .navigationTitle(thread?.title ?? "Thread")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
