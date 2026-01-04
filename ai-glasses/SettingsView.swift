@@ -593,6 +593,7 @@ private struct PermissionDetailView: View {
     
     @ObservedObject private var permissionsManager = PermissionsManager.shared
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showPhotoLibraryExplanation: Bool = false
     
     private var status: PermissionStatus {
         permissionsManager.status(for: permission)
@@ -699,6 +700,14 @@ private struct PermissionDetailView: View {
                 permissionsManager.refreshAll()
             }
         }
+        .alert("Photo Library Access", isPresented: $showPhotoLibraryExplanation) {
+            Button("Continue") {
+                permissionsManager.requestPhotoLibrary()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This app requests ADD-ONLY access to your Photo Library.\n\nThe app will NOT be able to see or access any existing photos or videos. It also won't see photos or videos created by other apps.\n\nThis permission is only needed to save photos and videos captured from your glasses.")
+        }
     }
     
     private func requestPermission() {
@@ -708,7 +717,8 @@ private struct PermissionDetailView: View {
         case .microphone:
             permissionsManager.requestMicrophone()
         case .photoLibrary:
-            permissionsManager.requestPhotoLibrary()
+            // Show explanation alert first
+            showPhotoLibraryExplanation = true
         case .bluetooth:
             permissionsManager.requestBluetooth()
         }

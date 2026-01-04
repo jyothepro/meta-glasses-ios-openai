@@ -72,7 +72,7 @@ enum PermissionType: String, CaseIterable, Identifiable {
         case .microphone:
             return "Voice Agent can hear you through the glasses microphone for natural conversations."
         case .photoLibrary:
-            return "Photos and videos captured from glasses are automatically saved to your Photo Library."
+            return "Photos and videos captured from glasses are saved to your Photo Library. This is ADD-ONLY access — the app cannot see or read any of your existing photos or videos."
         case .bluetooth:
             return "App can discover and connect to your Meta Ray-Ban glasses."
         }
@@ -85,7 +85,7 @@ enum PermissionType: String, CaseIterable, Identifiable {
         case .microphone:
             return "Voice Agent cannot hear you. Voice conversations will not work."
         case .photoLibrary:
-            return "Photos and videos will only be saved within the app, not in your Photo Library."
+            return "Photos and videos will only be saved within the app, not in your Photo Library. You can still capture and view media in the app."
         case .bluetooth:
             return "Cannot connect to glasses. The app will not be able to discover or pair with your glasses."
         }

@@ -10,9 +10,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Needed to record audio from Meta Wearables</string>
 	
-	<!-- Photo Library permission for saving photos and videos -->
+	<!-- Photo Library ADD-ONLY permission for saving photos and videos -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Needed to save photos and videos from Meta Wearables to your library</string>
+	<string>This app needs permission to SAVE photos and videos captured from your glasses to your Photo Library. The app will NOT be able to see or access any of your existing photos or videos.</string>
 	
 	<!-- Location permission for context-aware AI responses -->
 	<key>NSLocationWhenInUseUsageDescription</key>
