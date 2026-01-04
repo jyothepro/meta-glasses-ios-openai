@@ -134,6 +134,9 @@ struct SettingsView: View {
             .onAppear {
                 userPrompt = settingsManager.userPrompt
             }
+            .onDisappear {
+                settingsManager.saveNow()
+            }
             .sheet(item: $selectedMemory) { memory in
                 MemoryEditorView(
                     originalKey: memory.id,

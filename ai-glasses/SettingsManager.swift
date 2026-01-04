@@ -29,6 +29,8 @@ final class SettingsManager: ObservableObject {
     @Published private(set) var settings: AppSettings = .empty
     
     private let fileName = "settings.json"
+    private var saveWorkItem: DispatchWorkItem?
+    private let saveDebounceInterval: TimeInterval = 0.5
     
     private var fileURL: URL {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -45,7 +47,7 @@ final class SettingsManager: ObservableObject {
         get { settings.userPrompt }
         set {
             settings.userPrompt = newValue
-            save()
+            scheduleSave()
         }
     }
     
@@ -82,7 +84,7 @@ final class SettingsManager: ObservableObject {
             logger.info("Added memory: \(trimmedKey)")
         }
         
-        save()
+        scheduleSave()
     }
     
     /// Update memory directly (for UI editing)
@@ -102,13 +104,13 @@ final class SettingsManager: ObservableObject {
         }
         
         settings.memories[trimmedNewKey] = trimmedValue
-        save()
+        saveNow()
     }
     
     /// Delete memory by key
     func deleteMemory(key: String) {
         settings.memories.removeValue(forKey: key)
-        save()
+        saveNow()
     }
     
     /// Add new empty memory
@@ -120,7 +122,7 @@ final class SettingsManager: ObservableObject {
             counter += 1
         }
         settings.memories[newKey] = ""
-        save()
+        saveNow()
         return newKey
     }
     
@@ -141,7 +143,26 @@ final class SettingsManager: ObservableObject {
         }
     }
     
-    private func save() {
+    /// Schedule a debounced save - will only write to disk after saveDebounceInterval of inactivity
+    private func scheduleSave() {
+        saveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                self?.performSave()
+            }
+        }
+        saveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + saveDebounceInterval, execute: workItem)
+    }
+    
+    /// Immediately save to disk (use on view disappear, app background)
+    func saveNow() {
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        performSave()
+    }
+    
+    private func performSave() {
         do {
             let data = try JSONEncoder().encode(settings)
             try data.write(to: fileURL, options: .atomic)
