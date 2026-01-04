@@ -24,9 +24,10 @@ Talk hands-free through your glasses. The AI hears you, sees what you see, and r
 >
 > **How to enable:**  
 > 1. Open **Meta AI** app on your phone  
-> 2. Go to **Settings** → **Glasses** → scroll down  
-> 3. Enable **Developer Mode**  
-> 4. Follow prompts to restart glasses if needed
+> 2. Go to **Settings** → **App Info**  
+> 3. Tap **App version** number **five times quickly** — this reveals the Developer Mode toggle  
+> 4. Enable the **Developer Mode** toggle  
+> 5. Tap **Enable** to confirm
 >
 > See [Meta Wearables Setup Guide](https://wearables.developer.meta.com/docs/getting-started-toolkit) for detailed instructions.
 
