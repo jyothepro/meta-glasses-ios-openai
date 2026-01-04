@@ -13,7 +13,7 @@ Talk hands-free through your glasses. The AI hears you, sees what you see, and r
 
 **Tools** the AI can use:
 - 📷 `take_photo` — see through glasses camera ("what am I looking at?")
-- 🌐 `search_internet` — real-time news, weather, prices, sports scores
+- 🌐 `search_internet` — real-time news, weather, prices, sports scores (via Perplexity)
 - 🧠 `manage_memory` — remember things about you across conversations
 
 ## Quick Start
@@ -31,16 +31,26 @@ cp meta-glasses-ios-openai/Config.swift.example meta-glasses-ios-openai/Config.s
 
 ### 2. Fill in credentials
 
-**Config.xcconfig:**
+The project requires two config files (both are gitignored for security):
+
+| Required file | Example template |
+|---------------|------------------|
+| `Config.xcconfig` | [`Config.xcconfig.example`](Config.xcconfig.example) |
+| `meta-glasses-ios-openai/Config.swift` | [`Config.swift.example`](meta-glasses-ios-openai/Config.swift.example) |
+
+Copy each `.example` file (remove the `.example` suffix) and fill in your values:
+
+**Config.xcconfig** — Xcode build settings:
 ```
 PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.metaglasses
 DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
 META_APP_ID = YOUR_META_APP_ID_HERE
 ```
 
-**Config.swift:**
+**Config.swift** — API keys:
 ```swift
 static let openAIAPIKey = "sk-..."
+static let perplexityAPIKey = "pplx-..."
 ```
 
 ### 3. Build and run
@@ -57,6 +67,7 @@ Open `meta-glasses-ios-openai.xcodeproj` in Xcode → Run on physical iOS device
 | Meta Ray-Ban smart glasses | Paired via Meta View app |
 | Meta App ID | [developer.meta.com](https://developer.meta.com) |
 | OpenAI API key | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Perplexity API key | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
 
 ## Tech Stack
 
