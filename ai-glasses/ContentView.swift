@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import MWDATCamera
 import AVFoundation
 import AVKit
@@ -87,7 +88,35 @@ private struct LoadingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .background(KeyboardPreloader())
     }
+}
+
+// MARK: - Keyboard Preloader
+
+/// Preloads the keyboard system during loading screen to avoid delay on first text input
+private struct KeyboardPreloader: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let container = UIView(frame: .zero)
+        container.isHidden = true
+        
+        // Create hidden text field to trigger keyboard preload
+        let textField = UITextField(frame: .zero)
+        textField.isHidden = true
+        container.addSubview(textField)
+        
+        // Briefly become first responder to preload keyboard, then resign
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            textField.becomeFirstResponder()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                textField.resignFirstResponder()
+            }
+        }
+        
+        return container
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
 // MARK: - Glasses Tab
