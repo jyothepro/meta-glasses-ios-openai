@@ -149,12 +149,15 @@ final class RealtimeAPIClient: ObservableObject {
         - The tool will capture a photo and provide you with a description of what the camera sees
         - You can store and manage memories about the user via the manage_memory tool
         - Use manage_memory when the user shares personal info, preferences, or asks you to remember something
+        - You can search the internet via the search_internet tool
+        - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
         
         # Guidelines
         - Keep responses brief and conversational (1-3 sentences when possible)
         - Respond in the same language the user speaks
         - Be natural, helpful, and context-aware
         - When describing what the user sees, be specific and helpful
+        - When providing search results, summarize the key information concisely
         """
     
     // MARK: - Initialization
@@ -785,6 +788,63 @@ final class RealtimeAPIClient: ObservableObject {
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    /// Call Perplexity Search API for web search
+    private func callPerplexitySearch(query: String) async throws -> String {
+        let url = URL(string: "https://api.perplexity.ai/search")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(Config.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+        
+        let body: [String: Any] = [
+            "query": query,
+            "max_results": 5,
+            "max_tokens_per_page": 1024
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "RealtimeAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Perplexity API error (\(httpResponse.statusCode)): \(errorMessage)"])
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = json["results"] as? [[String: Any]] else {
+            throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Perplexity response format"])
+        }
+        
+        // Format results for the AI
+        var formattedResults = "Search results for: \(query)\n\n"
+        
+        for (index, result) in results.enumerated() {
+            let title = result["title"] as? String ?? "No title"
+            let snippet = result["snippet"] as? String ?? "No content"
+            let url = result["url"] as? String ?? ""
+            let date = result["date"] as? String
+            
+            formattedResults += "[\(index + 1)] \(title)\n"
+            if let date = date {
+                formattedResults += "Date: \(date)\n"
+            }
+            formattedResults += "\(snippet)\n"
+            formattedResults += "Source: \(url)\n\n"
+        }
+        
+        if results.isEmpty {
+            formattedResults = "No search results found for: \(query)"
+        }
+        
+        return formattedResults
+    }
+    
     /// Get user-friendly display text for tool call
     private func toolCallDisplayText(name: String) -> String {
         switch name {
@@ -792,6 +852,8 @@ final class RealtimeAPIClient: ObservableObject {
             return "📸 Capturing photo..."
         case "manage_memory":
             return "🧠 Managing memory..."
+        case "search_internet":
+            return "🔍 Searching the web..."
         default:
             return "🔧 \(name)..."
         }
@@ -815,6 +877,8 @@ final class RealtimeAPIClient: ObservableObject {
             await handleTakePhotoTool(callId: callId)
         case "manage_memory":
             handleManageMemoryTool(callId: callId, arguments: arguments)
+        case "search_internet":
+            await handleSearchInternetTool(callId: callId, arguments: arguments)
         default:
             logger.warning("⚠️ Unknown function: \(name)")
             sendToolResult(callId: callId, result: "Error: Unknown function '\(name)'")
@@ -869,6 +933,40 @@ final class RealtimeAPIClient: ObservableObject {
         
         updatePendingToolMessage(text: displayMessage)
         sendToolResult(callId: callId, result: resultMessage)
+    }
+    
+    /// Handle the search_internet tool call
+    private func handleSearchInternetTool(callId: String, arguments: String) async {
+        logger.info("🔍 Searching the internet...")
+        
+        // Parse arguments
+        guard let data = arguments.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let query = json["query"] as? String else {
+            logger.error("❌ Failed to parse search_internet arguments")
+            updatePendingToolMessage(text: "🔍 Search error")
+            sendToolResult(callId: callId, result: "Error: Invalid arguments - missing query")
+            return
+        }
+        
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            logger.error("❌ Empty search query")
+            updatePendingToolMessage(text: "🔍 Search error")
+            sendToolResult(callId: callId, result: "Error: Empty search query")
+            return
+        }
+        
+        do {
+            let results = try await callPerplexitySearch(query: trimmedQuery)
+            logger.info("🔍 Search completed successfully")
+            updatePendingToolMessage(text: "🔍 Found results")
+            sendToolResult(callId: callId, result: results)
+        } catch {
+            logger.error("❌ Search failed: \(error.localizedDescription)")
+            updatePendingToolMessage(text: "🔍 Search failed")
+            sendToolResult(callId: callId, result: "Search failed: \(error.localizedDescription)")
+        }
     }
     
     /// Handle the take_photo tool call
@@ -1057,6 +1155,22 @@ final class RealtimeAPIClient: ObservableObject {
             ] as [String: Any]
         ]
         
+        let searchInternetTool: [String: Any] = [
+            "type": "function",
+            "name": "search_internet",
+            "description": "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
+            "parameters": [
+                "type": "object",
+                "properties": [
+                    "query": [
+                        "type": "string",
+                        "description": "Search query in natural language, one sentence"
+                    ] as [String: Any]
+                ] as [String: Any],
+                "required": ["query"]
+            ] as [String: Any]
+        ]
+        
         let sessionConfig: [String: Any] = [
             "type": "session.update",
             "session": [
@@ -1075,7 +1189,7 @@ final class RealtimeAPIClient: ObservableObject {
                     "silence_duration_ms": 2000,
                     "create_response": false
                 ] as [String: Any],
-                "tools": [takePhotoTool, manageMemoryTool]
+                "tools": [takePhotoTool, manageMemoryTool, searchInternetTool]
             ] as [String: Any]
         ]
         
@@ -1311,6 +1425,9 @@ final class RealtimeAPIClient: ObservableObject {
                 // Ignore cancellation errors - they're expected when barge-in happens after response completes
                 if message.contains("Cancellation failed") || message.contains("no active response") {
                     logger.info("ℹ️ Cancellation skipped (response already completed)")
+                // Ignore buffer too small errors - expected when disconnecting without speaking
+                } else if message.contains("buffer too small") {
+                    logger.info("ℹ️ Empty audio buffer commit skipped (no speech detected)")
                 } else {
                     logger.error("❌ Server error: \(message)")
                     connectionState = .error(message)
