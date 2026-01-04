@@ -138,7 +138,8 @@ final class RealtimeAPIClient: ObservableObject {
     private var historyToLoad: [StoredMessage] = []
     
     // Base system instructions (without user customizations)
-    private let baseInstructions = """
+    private var baseInstructions: String {
+        var instructions = """
         You are a helpful voice assistant integrated into Meta smart glasses. 
         
         # Context
@@ -153,15 +154,36 @@ final class RealtimeAPIClient: ObservableObject {
         - The tool will capture a photo and provide you with a description of what the camera sees
         - You can store and manage memories about the user via the manage_memory tool
         - Use manage_memory when the user shares personal info, preferences, or asks you to remember something
-        - You can search the internet via the search_internet tool
-        - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
+        """
+        
+        // Only include search_internet if Perplexity is configured
+        if Config.isPerplexityConfigured {
+            instructions += """
+            
+            - You can search the internet via the search_internet tool
+            - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
+            """
+        }
+        
+        instructions += """
+        
         
         # Guidelines
         - Keep responses brief and conversational (1-3 sentences when possible) if user is not asking for longer responses.
         - Respond in the same language the user speaks
         - Be natural, helpful, and context-aware
         - When describing what the user sees, be specific and helpful
-        - When providing search results, summarize the key information concisely
+        """
+        
+        if Config.isPerplexityConfigured {
+            instructions += """
+            
+            - When providing search results, summarize the key information concisely
+            """
+        }
+        
+        instructions += """
+        
         
         # Communication Style
         - Use a Business Casual tone - professional yet approachable
@@ -178,6 +200,9 @@ final class RealtimeAPIClient: ObservableObject {
         - When the user shares something cool, match their excitement
         - Avoid monotone or flat delivery - vary your intonation naturally
         """
+        
+        return instructions
+    }
     
     /// Generate current time and location context string
     private func generateContextInfo() -> String {
@@ -1217,21 +1242,30 @@ final class RealtimeAPIClient: ObservableObject {
             ] as [String: Any]
         ]
         
-        let searchInternetTool: [String: Any] = [
-            "type": "function",
-            "name": "search_internet",
-            "description": "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
-            "parameters": [
-                "type": "object",
-                "properties": [
-                    "query": [
-                        "type": "string",
-                        "description": "Search query in natural language, one sentence"
-                    ] as [String: Any]
-                ] as [String: Any],
-                "required": ["query"]
-            ] as [String: Any]
-        ]
+        // Build tools array - search_internet is only available if Perplexity is configured
+        var tools: [[String: Any]] = [takePhotoTool, manageMemoryTool]
+        
+        if Config.isPerplexityConfigured {
+            let searchInternetTool: [String: Any] = [
+                "type": "function",
+                "name": "search_internet",
+                "description": "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
+                "parameters": [
+                    "type": "object",
+                    "properties": [
+                        "query": [
+                            "type": "string",
+                            "description": "Search query in natural language, one sentence"
+                        ] as [String: Any]
+                    ] as [String: Any],
+                    "required": ["query"]
+                ] as [String: Any]
+            ]
+            tools.append(searchInternetTool)
+            logger.info("🔍 search_internet tool enabled (Perplexity configured)")
+        } else {
+            logger.info("🔍 search_internet tool disabled (Perplexity not configured)")
+        }
         
         let sessionConfig: [String: Any] = [
             "type": "session.update",
@@ -1251,7 +1285,7 @@ final class RealtimeAPIClient: ObservableObject {
                     "silence_duration_ms": 2000,
                     "create_response": false
                 ] as [String: Any],
-                "tools": [takePhotoTool, manageMemoryTool, searchInternetTool]
+                "tools": tools
             ] as [String: Any]
         ]
         

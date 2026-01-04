@@ -6,17 +6,37 @@
 //
 //  Setup:
 //  1. Copy this file to Config.swift
-//  2. Replace the placeholder with your actual API key
+//  2. Replace the placeholders with your actual API keys
 //
 
 import Foundation
 
 enum Config {
-    // Replace with your OpenAI API key
+    // ============================================================================
+    // REQUIRED: OpenAI API Key
+    // ============================================================================
     // Get one at: https://platform.openai.com/api-keys
+    // Must have access to Realtime API (gpt-4o-realtime)
+    //
     static let openAIAPIKey = "your-openai-api-key-here"
     
-    // Replace with your Perplexity API key
+    // ============================================================================
+    // OPTIONAL: Perplexity API Key
+    // ============================================================================
     // Get one at: https://www.perplexity.ai/settings/api
-    static let perplexityAPIKey = "your-perplexity-api-key-here"
+    //
+    // Leave empty "" to disable search_internet tool.
+    // Everything else will work normally without it.
+    //
+    static let perplexityAPIKey = ""
+    
+    // ============================================================================
+    // Helpers (do not modify)
+    // ============================================================================
+    
+    /// Returns true if Perplexity API key is configured and valid
+    static var isPerplexityConfigured: Bool {
+        !perplexityAPIKey.isEmpty &&
+        perplexityAPIKey != "your-perplexity-api-key-here"
+    }
 }

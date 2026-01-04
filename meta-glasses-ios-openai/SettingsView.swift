@@ -396,6 +396,17 @@ private struct AIToolDefinition: Identifiable {
     let icon: String
     let description: String
     let parameters: [AIToolParameter]
+    let isActive: Bool
+    let inactiveReason: String?
+    
+    init(name: String, icon: String, description: String, parameters: [AIToolParameter], isActive: Bool = true, inactiveReason: String? = nil) {
+        self.name = name
+        self.icon = icon
+        self.description = description
+        self.parameters = parameters
+        self.isActive = isActive
+        self.inactiveReason = inactiveReason
+    }
 }
 
 // MARK: - AI Tools List View
@@ -438,7 +449,9 @@ private struct AIToolsListView: View {
                     description: "Search query in natural language, one sentence",
                     isRequired: true
                 )
-            ]
+            ],
+            isActive: Config.isPerplexityConfigured,
+            inactiveReason: "Add Perplexity API key in Config.swift to enable"
         )
     ]
     
@@ -524,14 +537,41 @@ private struct AIToolRow: View {
                 }
             }
             .padding(.vertical, 8)
+            // Inactive reason
+            if !tool.isActive, let reason = tool.inactiveReason {
+                Divider()
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
         } label: {
-            Label {
-                Text(tool.name)
-                    .font(.body)
-                    .fontWeight(.medium)
-            } icon: {
-                Image(systemName: tool.icon)
-                    .foregroundColor(.accentColor)
+            HStack(spacing: 8) {
+                Label {
+                    Text(tool.name)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(tool.isActive ? .primary : .secondary)
+                } icon: {
+                    Image(systemName: tool.icon)
+                        .foregroundColor(tool.isActive ? .accentColor : .secondary)
+                }
+                
+                if !tool.isActive {
+                    Text("Inactive")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundColor(.orange)
+                        .cornerRadius(4)
+                }
             }
         }
     }

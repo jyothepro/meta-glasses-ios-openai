@@ -13,7 +13,7 @@ Talk hands-free through your glasses. The AI hears you, sees what you see, and r
 
 **Tools** the AI can use:
 - 📷 `take_photo` — see through glasses camera ("what am I looking at?")
-- 🌐 `search_internet` — real-time news, weather, prices, sports scores (via Perplexity)
+- 🌐 `search_internet` — real-time news, weather, prices, sports scores (requires Perplexity API key)
 - 🧠 `manage_memory` — remember things about you across conversations
 
 ## Before You Start
@@ -63,8 +63,8 @@ META_APP_ID = YOUR_META_APP_ID_HERE
 
 **Config.swift** — API keys:
 ```swift
-static let openAIAPIKey = "sk-..."
-static let perplexityAPIKey = "pplx-..."
+static let openAIAPIKey = "sk-..."        // Required
+static let perplexityAPIKey = "pplx-..."  // Optional (leave empty to disable search)
 ```
 
 ### 3. Build and run
@@ -81,7 +81,9 @@ Open `meta-glasses-ios-openai.xcodeproj` in Xcode → Run on physical iOS device
 | Meta smart glasses | Paired via Meta AI app |
 | Meta App ID | [developer.meta.com](https://developer.meta.com) |
 | OpenAI API key | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Perplexity API key | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
+| Perplexity API key *(optional)* | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
+
+> 💡 **Perplexity API key is optional.** Without it, the `search_internet` tool will be disabled but everything else works normally.
 
 > 💡 Don't forget to enable Developer Mode on your glasses — see [Before You Start](#before-you-start) above.
 
