@@ -100,6 +100,10 @@ final class RealtimeAPIClient: ObservableObject {
     // Track pending user message to ensure correct ordering
     private var pendingUserMessageId: UUID?
     
+    // Conversation history for intent detection context
+    private var recentTranscripts: [String] = []
+    private let maxRecentTranscripts = 5
+    
     // MARK: - Initialization
     
     init(apiKey: String) {
@@ -188,15 +192,33 @@ final class RealtimeAPIClient: ObservableObject {
         }
     }
     
-    /// Stop listening and trigger response
+    /// Stop listening (VAD handles response triggering via trigger phrases)
     func stopListening() {
-        guard voiceState == .listening else { return }
+        guard voiceState == .listening || voiceState == .processing else { return }
         
         logger.info("🎤 Stopping listening...")
         stopAudioCapture()
         
-        // Commit audio buffer to signal end of speech
+        // Commit any remaining audio
         commitAudioBuffer()
+        
+        voiceState = .idle
+    }
+    
+    /// Force request a response (button fallback if user forgot trigger phrase)
+    func forceResponse() {
+        guard connectionState == .connected, isSessionConfigured else {
+            logger.warning("Cannot force response: not connected or not configured")
+            return
+        }
+        
+        logger.info("🔘 Force response requested")
+        
+        // Commit any pending audio first
+        commitAudioBuffer()
+        
+        // Request response
+        requestResponse()
         
         voiceState = .processing
     }
@@ -430,20 +452,103 @@ final class RealtimeAPIClient: ObservableObject {
         logger.info("📤 Committing audio buffer")
         
         // Add placeholder user message to ensure correct ordering
-        let userMessage = ChatMessage(isUser: true, text: "...")
-        pendingUserMessageId = userMessage.id
-        messages.append(userMessage)
+        if pendingUserMessageId == nil {
+            let userMessage = ChatMessage(isUser: true, text: "...")
+            pendingUserMessageId = userMessage.id
+            messages.append(userMessage)
+        }
         
         let commitEvent: [String: String] = [
             "type": "input_audio_buffer.commit"
         ]
         send(event: commitEvent)
-        
-        // Explicitly request response (required when turn_detection is disabled)
+    }
+    
+    /// Request a response from the assistant
+    private func requestResponse() {
         let responseEvent: [String: String] = [
             "type": "response.create"
         ]
         send(event: responseEvent)
+    }
+    
+    /// Ask a fast LLM to determine if user expects a response
+    private func shouldRespondToUser(_ transcript: String) async -> Bool {
+        // Build context from recent conversation
+        let context = recentTranscripts.suffix(maxRecentTranscripts).joined(separator: "\n")
+        
+        let prompt = """
+            You are an intent classifier for a voice assistant. Analyze if the user has finished their thought and expects an AI response.
+            
+            Recent conversation context:
+            \(context.isEmpty ? "(none)" : context)
+            
+            Current user utterance:
+            \(transcript)
+            
+            Consider:
+            - Did the user ask a question?
+            - Did the user give a command or request?
+            - Did the user say a trigger word like "answer", "respond", "done", "ответь", "готово"?
+            - Is the sentence complete or does it seem like the user might continue?
+            - A pause or "hmm" or "let me think" means user is still thinking - don't respond yet.
+            
+            Reply with ONLY one word: YES or NO
+            YES = user expects a response now
+            NO = user is still thinking or hasn't asked anything yet
+            """
+        
+        do {
+            let result = try await callFastLLM(prompt: prompt)
+            let shouldRespond = result.uppercased().contains("YES")
+            logger.info("🤖 Intent classifier: \(result) → shouldRespond: \(shouldRespond)")
+            return shouldRespond
+        } catch {
+            logger.warning("⚠️ Intent classifier failed: \(error.localizedDescription), falling back to simple heuristics")
+            // Fallback: check for question marks or common trigger phrases
+            return transcript.contains("?") || 
+                   transcript.lowercased().contains("ответь") ||
+                   transcript.lowercased().contains("done") ||
+                   transcript.lowercased().contains("answer")
+        }
+    }
+    
+    /// Call gpt-4o-mini for fast classification
+    private func callFastLLM(prompt: String) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 3 // Fast timeout - we need quick response
+        
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "user", "content": prompt]
+            ],
+            "max_tokens": 10,
+            "temperature": 0
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: "LLM request failed"])
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let firstChoice = choices.first,
+              let message = firstChoice["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid LLM response"])
+        }
+        
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private func configureSession() async {
@@ -453,14 +558,24 @@ final class RealtimeAPIClient: ObservableObject {
             "type": "session.update",
             "session": [
                 "modalities": ["text", "audio"],
-                "instructions": "You are a helpful voice assistant for smart glasses. Keep responses brief and conversational. Respond in the same language the user speaks.",
+                "instructions": """
+                    You are a helpful voice assistant for smart glasses. Keep responses brief and conversational. 
+                    Respond in the same language the user speaks.
+                    Be natural and helpful. The user is wearing smart glasses and talking to you hands-free.
+                    """,
                 "voice": "alloy",
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "input_audio_transcription": [
                     "model": "whisper-1"
                 ],
-                "turn_detection": NSNull()
+                "turn_detection": [
+                    "type": "server_vad",
+                    "threshold": 0.5,
+                    "prefix_padding_ms": 300,
+                    "silence_duration_ms": 2000,  // 2 seconds pause before detecting end of speech
+                    "create_response": false       // Don't auto-respond, wait for trigger phrase
+                ] as [String: Any]
             ]
         ]
         
@@ -568,7 +683,42 @@ final class RealtimeAPIClient: ObservableObject {
                     pendingUserMessageId = nil
                 }
                 logger.info("👤 User: \(transcript)")
+                
+                // Add to recent transcripts for context
+                recentTranscripts.append(transcript)
+                if recentTranscripts.count > maxRecentTranscripts {
+                    recentTranscripts.removeFirst()
+                }
+                
+                // Ask LLM classifier if we should respond
+                Task {
+                    let shouldRespond = await shouldRespondToUser(transcript)
+                    if shouldRespond {
+                        logger.info("🎯 LLM decided to respond")
+                        requestResponse()
+                    } else {
+                        logger.info("⏸️ LLM decided to wait")
+                        voiceState = .idle // Go back to idle, user might continue
+                    }
+                }
             }
+            
+        case "input_audio_buffer.speech_started":
+            logger.info("🎙️ Speech started (VAD)")
+            voiceState = .listening
+            // Add placeholder for user message
+            if pendingUserMessageId == nil {
+                let userMessage = ChatMessage(isUser: true, text: "...")
+                pendingUserMessageId = userMessage.id
+                messages.append(userMessage)
+            }
+            
+        case "input_audio_buffer.speech_stopped":
+            logger.info("🔇 Speech stopped (VAD)")
+            voiceState = .processing
+            
+        case "input_audio_buffer.committed":
+            logger.info("📥 Audio buffer committed")
             
         case "response.done":
             logger.info("✅ Response complete")

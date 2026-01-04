@@ -63,6 +63,10 @@ struct VoiceAgentView: View {
                     onStopListening: {
                         logger.info("🎤 Stop listening tapped")
                         client.stopListening()
+                    },
+                    onForceResponse: {
+                        logger.info("🔘 Force response tapped")
+                        client.forceResponse()
                     }
                 )
             }
@@ -254,6 +258,7 @@ private struct ControlBar: View {
     let onDisconnect: () -> Void
     let onStartListening: () -> Void
     let onStopListening: () -> Void
+    let onForceResponse: () -> Void
     
     var body: some View {
         VStack(spacing: 12) {
@@ -292,6 +297,13 @@ private struct ControlBar: View {
                     .padding()
                 }
             } else {
+                // Smart detection hint
+                if voiceState == .idle || voiceState == .listening {
+                    Text("AI will detect when you're ready for a response")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
                 // Voice controls
                 HStack(spacing: 20) {
                     // Disconnect button
@@ -313,9 +325,14 @@ private struct ControlBar: View {
                     
                     Spacer()
                     
-                    // Placeholder for symmetry
-                    Color.clear
-                        .frame(width: 44, height: 44)
+                    // Force response button (fallback if user forgot trigger phrase)
+                    Button(action: onForceResponse) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.green)
+                    }
+                    .disabled(voiceState == .speaking || voiceState == .processing)
+                    .opacity(voiceState == .speaking || voiceState == .processing ? 0.4 : 1.0)
                 }
                 .padding()
             }
