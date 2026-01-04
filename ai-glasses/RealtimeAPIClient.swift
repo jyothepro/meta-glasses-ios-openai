@@ -274,6 +274,9 @@ final class RealtimeAPIClient: ObservableObject {
         connectionState = .connecting
         logger.info("Connecting to Realtime API...")
         
+        // Create a new thread for this conversation
+        _ = ThreadsManager.shared.createThread()
+        
         // Also connect to glasses if registered
         if glassesManager.isRegistered && !glassesManager.connectionState.isConnected {
             logger.info("👓 Auto-connecting to glasses...")
@@ -305,6 +308,11 @@ final class RealtimeAPIClient: ObservableObject {
     
     func disconnect() {
         logger.info("Disconnecting from Realtime API")
+        
+        // Save messages to thread before clearing
+        ThreadsManager.shared.saveMessages(messages: messages)
+        ThreadsManager.shared.finalizeActiveThread()
+        
         stopListening()
         stopAudioEngine()
         webSocket?.cancel(with: .normalClosure, reason: nil)
@@ -1299,6 +1307,8 @@ final class RealtimeAPIClient: ObservableObject {
                 if !assistantMessageFinalized {
                     messages.append(ChatMessage(isUser: false, text: transcript))
                     logger.info("🤖 Assistant: \(transcript)")
+                    // Save messages to thread
+                    ThreadsManager.shared.saveMessages(messages: messages)
                 } else {
                     logger.info("🤖 Assistant transcript received (already finalized during barge-in)")
                 }
@@ -1314,6 +1324,8 @@ final class RealtimeAPIClient: ObservableObject {
                    let index = messages.firstIndex(where: { $0.id == pendingId }) {
                     messages[index].text = transcript
                     pendingUserMessageId = nil
+                    // Save messages to thread
+                    ThreadsManager.shared.saveMessages(messages: messages)
                 }
                 logger.info("👤 User: \(transcript)")
                 
@@ -1361,6 +1373,8 @@ final class RealtimeAPIClient: ObservableObject {
                     logger.info("🤖 Assistant (interrupted): \(interruptedText)")
                     assistantTranscript = ""
                     assistantMessageFinalized = true // Prevent duplicate from response.audio_transcript.done
+                    // Save messages to thread
+                    ThreadsManager.shared.saveMessages(messages: messages)
                 }
             }
             

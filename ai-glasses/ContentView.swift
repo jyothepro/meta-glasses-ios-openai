@@ -16,11 +16,13 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glass
 
 enum AppTab: Int {
     case voiceAgent = 0
-    case settings = 1
+    case threads = 1
+    case settings = 2
     
     var name: String {
         switch self {
         case .voiceAgent: return "Voice Agent"
+        case .threads: return "Threads"
         case .settings: return "Settings"
         }
     }
@@ -54,6 +56,12 @@ struct ContentView: View {
                             Label("Voice Agent", systemImage: "waveform.circle")
                         }
                         .tag(AppTab.voiceAgent)
+                    
+                    ThreadsView()
+                        .tabItem {
+                            Label("Threads", systemImage: "bubble.left.and.bubble.right")
+                        }
+                        .tag(AppTab.threads)
                     
                     SettingsView(glassesManager: glassesManager)
                         .tabItem {
@@ -118,7 +126,12 @@ private struct SystemPreloader: UIViewRepresentable {
                 _ = SettingsManager.shared.memories
             }
             
-            // 3. Preload SoundManager (warm up audio engine with silent tone)
+            // 3. Preload ThreadsManager (triggers file load)
+            Task { @MainActor in
+                _ = ThreadsManager.shared.threads
+            }
+            
+            // 4. Preload SoundManager (warm up audio engine with silent tone)
             Task { @MainActor in
                 _ = SoundManager.shared
             }
