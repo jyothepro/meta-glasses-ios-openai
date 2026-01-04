@@ -693,17 +693,25 @@ private struct PermissionDetailView: View {
             
             // Description Section
             Section {
-                if status == .authorized || status == .limited {
-                    Text(permission.descriptionWhenAllowed)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                } else {
-                    Text(permission.descriptionWhenDenied)
-                        .font(.body)
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 12) {
+                    if status == .authorized || status == .limited {
+                        Text(permission.descriptionWhenAllowed)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                    } else {
+                        Text(permission.descriptionWhenDenied)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                    }
+                    
+                    if let note = permission.withoutPermissionNote {
+                        Text(note)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
                 }
             } header: {
-                Text(status == .authorized || status == .limited ? "What This Enables" : "What You're Missing")
+                Text(!permission.isRequired ? "About This Permission" : (status == .authorized || status == .limited ? "What This Enables" : "What You're Missing"))
             }
             
             // Action Section

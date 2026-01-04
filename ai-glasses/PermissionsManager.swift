@@ -105,6 +105,17 @@ enum PermissionType: String, CaseIterable, Identifiable {
         case .microphone, .bluetooth: return nil
         }
     }
+    
+    var withoutPermissionNote: String? {
+        switch self {
+        case .location:
+            return "Without this permission, AI simply won't know your location automatically."
+        case .photoLibrary:
+            return "Without this permission, photos and videos captured through glasses via this app won't be saved automatically to your photo feed."
+        case .microphone, .bluetooth:
+            return nil  // Required permissions - no note needed
+        }
+    }
 }
 
 // MARK: - Permissions Manager
