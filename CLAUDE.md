@@ -36,6 +36,7 @@ iOS app for experimenting with Meta Ray-Ban smart glasses.
 - `SettingsView` - UI for editing user prompt and memories
 - User prompt: additional instructions appended to system prompt
 - Memories: key-value pairs the AI can read and manage
+- Live updates: changes to settings send `session.update` to active session (debounced 500ms)
 
 ### Voice Agent Features
 - Server VAD + LLM intent classifier (gpt-4o-mini) decides when to respond

@@ -126,12 +126,40 @@ final class RealtimeAPIClient: ObservableObject {
     private var pendingFunctionCallId: String?
     private var pendingFunctionName: String?
     
+    // Settings observer for live updates
+    private var settingsSubscription: AnyCancellable?
+    
+    // Base system instructions (without user customizations)
+    private let baseInstructions = """
+        You are a helpful voice assistant integrated into Meta Ray-Ban smart glasses. 
+        
+        # Context
+        - The user is wearing Meta Ray-Ban AI glasses with a built-in camera
+        - You hear the user through the glasses microphone
+        - The user hears your responses through the glasses speakers
+        - This is a hands-free, eyes-up experience - keep responses concise
+        
+        # Capabilities
+        - You have access to the glasses camera via the take_photo tool
+        - When the user asks what they're looking at, seeing, or wants visual information about their surroundings, use the take_photo tool
+        - The tool will capture a photo and provide you with a description of what the camera sees
+        - You can store and manage memories about the user via the manage_memory tool
+        - Use manage_memory when the user shares personal info, preferences, or asks you to remember something
+        
+        # Guidelines
+        - Keep responses brief and conversational (1-3 sentences when possible)
+        - Respond in the same language the user speaks
+        - Be natural, helpful, and context-aware
+        - When describing what the user sees, be specific and helpful
+        """
+    
     // MARK: - Initialization
     
     init(apiKey: String, glassesManager: GlassesManager) {
         self.apiKey = apiKey
         self.glassesManager = glassesManager
         setupAudioInterruptionHandling()
+        setupSettingsObserver()
     }
     
     deinit {
@@ -139,10 +167,44 @@ final class RealtimeAPIClient: ObservableObject {
         if let observer = interruptionObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        // Cancel settings subscription
+        settingsSubscription?.cancel()
         // Clean up audio engine synchronously
         audioEngine?.inputNode.removeTap(onBus: 0)
         playerNode?.stop()
         audioEngine?.stop()
+    }
+    
+    /// Set up observer for settings changes to update instructions live
+    private func setupSettingsObserver() {
+        settingsSubscription = SettingsManager.shared.$settings
+            .dropFirst() // Skip initial value (we configure on connect)
+            .debounce(for: .seconds(0.5), scheduler: RunLoop.main) // Debounce rapid changes
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.sendInstructionsUpdate()
+                }
+            }
+    }
+    
+    /// Send updated instructions to the active session
+    private func sendInstructionsUpdate() {
+        guard connectionState == .connected, isSessionConfigured else {
+            logger.debug("Skipping instructions update - not connected or not configured")
+            return
+        }
+        
+        let systemInstructions = baseInstructions + SettingsManager.shared.generateInstructionsAddendum()
+        
+        let updateEvent: [String: Any] = [
+            "type": "session.update",
+            "session": [
+                "instructions": systemInstructions
+            ] as [String: Any]
+        ]
+        
+        send(event: updateEvent)
+        logger.info("📝 Sent instructions update with latest settings")
     }
     
     /// Set up handling for audio session interruptions (calls, other apps, etc.)
@@ -918,29 +980,6 @@ final class RealtimeAPIClient: ObservableObject {
     private func configureSession() async {
         logger.info("Configuring session...")
         
-        let baseInstructions = """
-            You are a helpful voice assistant integrated into Meta Ray-Ban smart glasses. 
-            
-            # Context
-            - The user is wearing Meta Ray-Ban AI glasses with a built-in camera
-            - You hear the user through the glasses microphone
-            - The user hears your responses through the glasses speakers
-            - This is a hands-free, eyes-up experience - keep responses concise
-            
-            # Capabilities
-            - You have access to the glasses camera via the take_photo tool
-            - When the user asks what they're looking at, seeing, or wants visual information about their surroundings, use the take_photo tool
-            - The tool will capture a photo and provide you with a description of what the camera sees
-            - You can store and manage memories about the user via the manage_memory tool
-            - Use manage_memory when the user shares personal info, preferences, or asks you to remember something
-            
-            # Guidelines
-            - Keep responses brief and conversational (1-3 sentences when possible)
-            - Respond in the same language the user speaks
-            - Be natural, helpful, and context-aware
-            - When describing what the user sees, be specific and helpful
-            """
-        
         // Append user memories and additional instructions from settings
         let systemInstructions = baseInstructions + SettingsManager.shared.generateInstructionsAddendum()
         
@@ -1068,8 +1107,10 @@ final class RealtimeAPIClient: ObservableObject {
         case "session.updated":
             isSessionConfigured = true
             logger.info("✅ Session configured")
-            // Auto-start listening after session is configured
-            startListening()
+            // Auto-start listening after initial session configuration (not on settings updates)
+            if voiceState == .idle {
+                startListening()
+            }
             
         case "response.created":
             logger.info("📝 New response started")
