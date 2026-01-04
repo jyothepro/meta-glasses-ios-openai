@@ -48,9 +48,11 @@ private struct CustomTextView: UIViewRepresentable {
         }
         
         func textViewDidBeginEditing(_ textView: UITextView) {
-            // Place cursor at the end
-            let endPosition = textView.endOfDocument
-            textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
+            // Place cursor at the end (delayed to override system's default selection)
+            DispatchQueue.main.async {
+                let endPosition = textView.endOfDocument
+                textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
+            }
         }
     }
 }
@@ -128,22 +130,28 @@ private struct AdditionalInstructionsView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        CustomTextView(text: $text)
-            .padding()
-            .navigationTitle("Additional Instructions")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        settingsManager.userPrompt = text
-                        settingsManager.saveNow()
-                        dismiss()
-                    }
+        Form {
+            Section {
+                CustomTextView(text: $text)
+                    .frame(height: 300)
+            } footer: {
+                Text("These instructions will be added to the AI assistant's system prompt.")
+            }
+        }
+        .navigationTitle("Additional Instructions")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    settingsManager.userPrompt = text
+                    settingsManager.saveNow()
+                    dismiss()
                 }
             }
-            .onAppear {
-                text = settingsManager.userPrompt
-            }
+        }
+        .onAppear {
+            text = settingsManager.userPrompt
+        }
     }
 }
 
