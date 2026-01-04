@@ -127,9 +127,9 @@ struct SettingsView: View {
                 
             }
             .scrollDismissesKeyboard(.interactively)
-            .onTapGesture {
+            .simultaneousGesture(TapGesture().onEnded {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            }
+            })
             .navigationTitle("Settings")
             .onAppear {
                 userPrompt = settingsManager.userPrompt
@@ -236,9 +236,9 @@ private struct MemoryEditorView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onTapGesture {
+            .simultaneousGesture(TapGesture().onEnded {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            }
+            })
             .navigationTitle(originalKey.starts(with: "new_memory") ? "New Memory" : "Edit Memory")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
