@@ -94,6 +94,9 @@ final class RealtimeAPIClient: ObservableObject {
     private var pendingAudioData = Data()
     private var isPlaying = false
     
+    // Track pending user message to ensure correct ordering
+    private var pendingUserMessageId: UUID?
+    
     // MARK: - Initialization
     
     init(apiKey: String) {
@@ -153,6 +156,7 @@ final class RealtimeAPIClient: ObservableObject {
         userTranscript = ""
         assistantTranscript = ""
         messages = []
+        pendingUserMessageId = nil
     }
     
     /// Start listening to microphone and streaming to OpenAI
@@ -411,6 +415,12 @@ final class RealtimeAPIClient: ObservableObject {
     
     private func commitAudioBuffer() {
         logger.info("📤 Committing audio buffer")
+        
+        // Add placeholder user message to ensure correct ordering
+        let userMessage = ChatMessage(isUser: true, text: "...")
+        pendingUserMessageId = userMessage.id
+        messages.append(userMessage)
+        
         let commitEvent: [String: String] = [
             "type": "input_audio_buffer.commit"
         ]
@@ -538,7 +548,12 @@ final class RealtimeAPIClient: ObservableObject {
         case "conversation.item.input_audio_transcription.completed":
             if let transcript = json["transcript"] as? String {
                 userTranscript = transcript
-                messages.append(ChatMessage(isUser: true, text: transcript))
+                // Update the placeholder message instead of adding new one
+                if let pendingId = pendingUserMessageId,
+                   let index = messages.firstIndex(where: { $0.id == pendingId }) {
+                    messages[index].text = transcript
+                    pendingUserMessageId = nil
+                }
                 logger.info("👤 User: \(transcript)")
             }
             
