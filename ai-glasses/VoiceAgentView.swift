@@ -195,7 +195,7 @@ private struct WelcomeView: View {
                         )
                         .frame(width: 120, height: 120)
                     
-                    Image(systemName: "waveform.circle.fill")
+                    Image(systemName: "eyeglasses")
                         .font(.system(size: 56))
                         .foregroundStyle(
                             LinearGradient(
@@ -208,10 +208,10 @@ private struct WelcomeView: View {
                 
                 // Text
                 VStack(spacing: 12) {
-                    Text("Voice Assistant")
+                    Text("AI for Meta Glasses")
                         .font(.title.bold())
                     
-                    Text("Have a natural conversation with AI.\nAsk questions, get help, or just chat.")
+                    Text("Talk to AI through your Meta smart glasses.\nHands-free conversations, photo analysis, and more.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -261,6 +261,15 @@ private struct WelcomeView: View {
             }
             
             Spacer()
+            
+            // Requirements note
+            Text("Requires Meta smart glasses paired with this device.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+                .padding(.bottom, 24)
+            
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
