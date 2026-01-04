@@ -24,55 +24,38 @@ struct VoiceAgentView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Connection status
-                        ConnectionStatusCard(
-                            connectionState: client.connectionState,
-                            isSessionConfigured: client.isSessionConfigured,
-                            voiceState: client.voiceState
-                        )
-                        
-                        // Transcript area
-                        if client.connectionState == .connected {
-                            TranscriptCard(
-                                messages: client.messages,
-                                currentUserTranscript: client.userTranscript,
-                                currentAssistantTranscript: client.assistantTranscript,
-                                voiceState: client.voiceState
-                            )
+            Group {
+                if client.connectionState == .connected {
+                    // Connected state: show conversation UI
+                    ConnectedView(
+                        client: client,
+                        onDisconnect: {
+                            logger.info("🔌 Disconnect button tapped")
+                            client.disconnect()
+                        },
+                        onStartListening: {
+                            logger.info("🎤 Start listening tapped")
+                            client.startListening()
+                        },
+                        onStopListening: {
+                            logger.info("🎤 Stop listening tapped")
+                            client.stopListening()
+                        },
+                        onForceResponse: {
+                            logger.info("🔘 Force response tapped")
+                            client.forceResponse()
                         }
-                    }
-                    .padding()
+                    )
+                } else {
+                    // Disconnected/connecting/error state: show welcome screen
+                    WelcomeView(
+                        connectionState: client.connectionState,
+                        onConnect: {
+                            logger.info("🔌 Connect button tapped")
+                            client.connect()
+                        }
+                    )
                 }
-                
-                // Bottom controls
-                ControlBar(
-                    connectionState: client.connectionState,
-                    voiceState: client.voiceState,
-                    audioLevel: client.audioLevel,
-                    onConnect: {
-                        logger.info("🔌 Connect button tapped")
-                        client.connect()
-                    },
-                    onDisconnect: {
-                        logger.info("🔌 Disconnect button tapped")
-                        client.disconnect()
-                    },
-                    onStartListening: {
-                        logger.info("🎤 Start listening tapped")
-                        client.startListening()
-                    },
-                    onStopListening: {
-                        logger.info("🎤 Stop listening tapped")
-                        client.stopListening()
-                    },
-                    onForceResponse: {
-                        logger.info("🔘 Force response tapped")
-                        client.forceResponse()
-                    }
-                )
             }
             .navigationTitle("Voice Agent")
             .onAppear {
@@ -85,69 +68,196 @@ struct VoiceAgentView: View {
     }
 }
 
-// MARK: - Connection Status Card
+// MARK: - Welcome View (Disconnected State)
 
-private struct ConnectionStatusCard: View {
+private struct WelcomeView: View {
     let connectionState: RealtimeConnectionState
+    let onConnect: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 32) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                    
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                // Text
+                VStack(spacing: 12) {
+                    Text("Voice Assistant")
+                        .font(.title.bold())
+                    
+                    Text("Have a natural conversation with AI.\nAsk questions, get help, or just chat.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                // Action button or status
+                VStack(spacing: 16) {
+                    if connectionState == .connecting {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text("Connecting...")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 16)
+                    } else if case .error(let message) = connectionState {
+                        VStack(spacing: 12) {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                            
+                            Button(action: onConnect) {
+                                Label("Try Again", systemImage: "arrow.clockwise")
+                                    .font(.headline)
+                                    .frame(maxWidth: 240)
+                                    .padding(.vertical, 16)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                        }
+                    } else {
+                        Button(action: onConnect) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "play.fill")
+                                Text("Start Discussion")
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: 240)
+                            .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                    }
+                }
+            }
+            
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - Connected View
+
+private struct ConnectedView: View {
+    @ObservedObject var client: RealtimeAPIClient
+    let onDisconnect: () -> Void
+    let onStartListening: () -> Void
+    let onStopListening: () -> Void
+    let onForceResponse: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Session status (compact)
+                    SessionStatusBar(
+                        isSessionConfigured: client.isSessionConfigured,
+                        voiceState: client.voiceState
+                    )
+                    
+                    // Transcript area
+                    TranscriptCard(
+                        messages: client.messages,
+                        currentUserTranscript: client.userTranscript,
+                        currentAssistantTranscript: client.assistantTranscript,
+                        voiceState: client.voiceState
+                    )
+                }
+                .padding()
+            }
+            
+            // Bottom controls
+            ControlBar(
+                voiceState: client.voiceState,
+                audioLevel: client.audioLevel,
+                onDisconnect: onDisconnect,
+                onStartListening: onStartListening,
+                onStopListening: onStopListening,
+                onForceResponse: onForceResponse
+            )
+        }
+    }
+}
+
+// MARK: - Session Status Bar
+
+private struct SessionStatusBar: View {
     let isSessionConfigured: Bool
     let voiceState: VoiceState
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Connection status row
-            HStack(spacing: 12) {
+        HStack(spacing: 12) {
+            // Session status
+            HStack(spacing: 6) {
                 Circle()
-                    .fill(statusColor)
-                    .frame(width: 12, height: 12)
+                    .fill(isSessionConfigured ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
                 
-                Text(connectionState.displayText)
-                    .font(.headline)
-                
-                Spacer()
-                
-                if connectionState == .connected {
-                    Text(voiceStateText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.tertiarySystemBackground))
-                        .cornerRadius(8)
-                }
+                Text(isSessionConfigured ? "Connected" : "Configuring...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             
-            // Session status
-            if connectionState == .connected {
-                HStack(spacing: 16) {
-                    Label(
-                        isSessionConfigured ? "Session Ready" : "Configuring...",
-                        systemImage: isSessionConfigured ? "checkmark.circle.fill" : "circle.dashed"
-                    )
-                    .font(.caption)
-                    .foregroundColor(isSessionConfigured ? .green : .orange)
-                }
-            }
+            Spacer()
+            
+            // Voice state badge
+            Text(voiceStateText)
+                .font(.caption.bold())
+                .foregroundColor(voiceStateColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(voiceStateColor.opacity(0.15))
+                .cornerRadius(8)
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-    
-    private var statusColor: Color {
-        switch connectionState {
-        case .disconnected: return .gray
-        case .connecting: return .orange
-        case .connected: return .green
-        case .error: return .red
-        }
+        .cornerRadius(10)
     }
     
     private var voiceStateText: String {
         switch voiceState {
         case .idle: return "Ready"
         case .listening: return "Listening..."
-        case .processing: return "Processing..."
+        case .processing: return "Thinking..."
         case .speaking: return "Speaking..."
+        }
+    }
+    
+    private var voiceStateColor: Color {
+        switch voiceState {
+        case .idle: return .secondary
+        case .listening: return .red
+        case .processing: return .orange
+        case .speaking: return .purple
         }
     }
 }
@@ -252,13 +362,11 @@ private struct MessageBubble: View {
     }
 }
 
-// MARK: - Control Bar
+// MARK: - Control Bar (Connected State Only)
 
 private struct ControlBar: View {
-    let connectionState: RealtimeConnectionState
     let voiceState: VoiceState
     let audioLevel: Float
-    let onConnect: () -> Void
     let onDisconnect: () -> Void
     let onStartListening: () -> Void
     let onStopListening: () -> Void
@@ -268,78 +376,44 @@ private struct ControlBar: View {
         VStack(spacing: 12) {
             Divider()
             
-            if connectionState != .connected {
-                // Connect/Disconnect button
-                if connectionState == .connecting {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Connecting...")
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                } else if case .error(let message) = connectionState {
-                    VStack(spacing: 8) {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.center)
-                        
-                        Button(action: onConnect) {
-                            Label("Retry Connection", systemImage: "arrow.clockwise")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding()
-                } else {
-                    Button(action: onConnect) {
-                        Label("Connect to OpenAI", systemImage: "waveform.circle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding()
-                }
-            } else {
-                // Smart detection hint
-                if voiceState == .idle || voiceState == .listening {
-                    Text("AI will detect when you're ready for a response")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // Smart detection hint
+            if voiceState == .idle || voiceState == .listening {
+                Text("AI will detect when you're ready for a response")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            // Voice controls
+            HStack(spacing: 20) {
+                // Disconnect button
+                Button(action: onDisconnect) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.red)
                 }
                 
-                // Voice controls
-                HStack(spacing: 20) {
-                    // Disconnect button
-                    Button(action: onDisconnect) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.red)
-                    }
-                    
-                    Spacer()
-                    
-                    // Microphone button
-                    MicrophoneButton(
-                        voiceState: voiceState,
-                        audioLevel: audioLevel,
-                        onStartListening: onStartListening,
-                        onStopListening: onStopListening
-                    )
-                    
-                    Spacer()
-                    
-                    // Force response button (fallback if user forgot trigger phrase)
-                    Button(action: onForceResponse) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.green)
-                    }
-                    .disabled(voiceState == .speaking || voiceState == .processing)
-                    .opacity(voiceState == .speaking || voiceState == .processing ? 0.4 : 1.0)
+                Spacer()
+                
+                // Microphone button
+                MicrophoneButton(
+                    voiceState: voiceState,
+                    audioLevel: audioLevel,
+                    onStartListening: onStartListening,
+                    onStopListening: onStopListening
+                )
+                
+                Spacer()
+                
+                // Force response button (fallback if user forgot trigger phrase)
+                Button(action: onForceResponse) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
                 }
-                .padding()
+                .disabled(voiceState == .speaking || voiceState == .processing)
+                .opacity(voiceState == .speaking || voiceState == .processing ? 0.4 : 1.0)
             }
+            .padding()
         }
         .background(Color(.systemBackground))
     }
