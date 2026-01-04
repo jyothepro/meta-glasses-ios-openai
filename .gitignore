@@ -40,3 +40,6 @@ playground.xcworkspace
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Secrets
+ai-glasses/Config.swift

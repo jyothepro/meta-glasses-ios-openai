@@ -9,8 +9,48 @@ import SwiftUI
 import MWDATCamera
 import AVFoundation
 import AVKit
+import os.log
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "ContentView")
+
+enum AppTab: Int {
+    case glasses = 0
+    case voiceAgent = 1
+    
+    var name: String {
+        switch self {
+        case .glasses: return "Glasses"
+        case .voiceAgent: return "Voice Agent"
+        }
+    }
+}
 
 struct ContentView: View {
+    @State private var selectedTab: AppTab = .glasses
+    
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            GlassesTab()
+                .tabItem {
+                    Label("Glasses", systemImage: "eyeglasses")
+                }
+                .tag(AppTab.glasses)
+            
+            VoiceAgentView()
+                .tabItem {
+                    Label("Voice Agent", systemImage: "waveform.circle")
+                }
+                .tag(AppTab.voiceAgent)
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            logger.info("📑 Tab changed: \(oldValue.name) → \(newValue.name)")
+        }
+    }
+}
+
+// MARK: - Glasses Tab
+
+private struct GlassesTab: View {
     @StateObject private var glassesManager = GlassesManager()
     @State private var selectedMediaItem: MediaItem?
     
@@ -78,7 +118,7 @@ struct ContentView: View {
                 }
                 .padding()
             }
-            .navigationTitle("AI Glasses")
+            .navigationTitle("Glasses")
             .fullScreenCover(item: $selectedMediaItem) { item in
                 MediaDetailView(item: item)
             }
