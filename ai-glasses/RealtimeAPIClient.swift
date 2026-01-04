@@ -119,10 +119,18 @@ final class RealtimeAPIClient: ObservableObject {
     // Audio interruption observer for background handling
     private var interruptionObserver: NSObjectProtocol?
     
+    // Glasses manager for photo capture
+    private let glassesManager: GlassesManager
+    
+    // Track pending function call for tool handling
+    private var pendingFunctionCallId: String?
+    private var pendingFunctionName: String?
+    
     // MARK: - Initialization
     
-    init(apiKey: String) {
+    init(apiKey: String, glassesManager: GlassesManager) {
         self.apiKey = apiKey
+        self.glassesManager = glassesManager
         setupAudioInterruptionHandling()
     }
     
@@ -670,18 +678,196 @@ final class RealtimeAPIClient: ObservableObject {
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    /// Handle function calls from the assistant
+    private func handleFunctionCall(name: String, callId: String, arguments: String) async {
+        logger.info("🔧 Handling function call: \(name)")
+        
+        switch name {
+        case "take_photo":
+            await handleTakePhotoTool(callId: callId)
+        default:
+            logger.warning("⚠️ Unknown function: \(name)")
+            sendToolResult(callId: callId, result: "Error: Unknown function '\(name)'")
+        }
+    }
+    
+    /// Handle the take_photo tool call
+    private func handleTakePhotoTool(callId: String) async {
+        logger.info("📸 Taking photo for assistant...")
+        
+        // Add a message to show we're capturing
+        messages.append(ChatMessage(isUser: false, text: "📸 Capturing photo..."))
+        
+        do {
+            // Capture photo using GlassesManager
+            let photoData = try await capturePhotoFromGlasses()
+            
+            logger.info("📸 Photo captured, sending directly to Realtime API (\(photoData.count) bytes)")
+            
+            // Update the capture message with success
+            if let lastIndex = messages.lastIndex(where: { $0.text == "📸 Capturing photo..." }) {
+                messages[lastIndex].text = "📸 Photo captured"
+            }
+            
+            // Send the image directly to Realtime API as a conversation item
+            sendImageToConversation(imageData: photoData)
+            
+            // Send tool result confirming the photo was taken
+            sendToolResult(callId: callId, result: "Photo captured successfully. I can now see what the user is looking at.")
+            
+        } catch {
+            logger.error("❌ Photo capture failed: \(error.localizedDescription)")
+            
+            // Update the capture message with error
+            if let lastIndex = messages.lastIndex(where: { $0.text == "📸 Capturing photo..." }) {
+                messages[lastIndex].text = "📸 Photo capture failed"
+            }
+            
+            sendToolResult(callId: callId, result: "Failed to capture photo: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Send an image directly to the Realtime API conversation
+    private func sendImageToConversation(imageData: Data) {
+        let base64Image = imageData.base64EncodedString()
+        
+        let imageEvent: [String: Any] = [
+            "type": "conversation.item.create",
+            "item": [
+                "type": "message",
+                "role": "user",
+                "content": [
+                    [
+                        "type": "input_image",
+                        "image_url": "data:image/jpeg;base64,\(base64Image)"
+                    ] as [String: Any]
+                ]
+            ] as [String: Any]
+        ]
+        
+        send(event: imageEvent)
+        logger.info("📸 Image sent to Realtime API conversation")
+    }
+    
+    /// Capture a photo from the glasses and return the image data
+    private func capturePhotoFromGlasses() async throws -> Data {
+        return try await withCheckedThrowingContinuation { continuation in
+            Task { @MainActor in
+                // Check if glasses are connected
+                guard glassesManager.isRegistered else {
+                    continuation.resume(throwing: NSError(
+                        domain: "RealtimeAPI",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Glasses not registered. Please register in the Glasses tab first."]
+                    ))
+                    return
+                }
+                
+                // Start observing for new photos
+                let startCount = glassesManager.capturedMedia.count
+                
+                // Trigger photo capture
+                glassesManager.capturePhoto()
+                
+                // Poll for new photo (with timeout)
+                Task {
+                    let maxWaitTime: TimeInterval = 10.0
+                    let pollInterval: TimeInterval = 0.25
+                    var elapsed: TimeInterval = 0
+                    
+                    while elapsed < maxWaitTime {
+                        try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                        elapsed += pollInterval
+                        
+                        // Check if we got a new photo
+                        let currentCount = await MainActor.run { glassesManager.capturedMedia.count }
+                        if currentCount > startCount {
+                            // Get the newest photo
+                            let media = await MainActor.run { glassesManager.capturedMedia }
+                            if let newest = media.first,
+                               case .photo(_, let data, _) = newest {
+                                continuation.resume(returning: data)
+                                return
+                            }
+                        }
+                    }
+                    
+                    continuation.resume(throwing: NSError(
+                        domain: "RealtimeAPI",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "Photo capture timed out. Make sure glasses are connected."]
+                    ))
+                }
+            }
+        }
+    }
+    
+    /// Send tool result back to the Realtime API
+    private func sendToolResult(callId: String, result: String) {
+        logger.info("📤 Sending tool result for call: \(callId)")
+        
+        // Create conversation item with tool result
+        let itemEvent: [String: Any] = [
+            "type": "conversation.item.create",
+            "item": [
+                "type": "function_call_output",
+                "call_id": callId,
+                "output": result
+            ] as [String: Any]
+        ]
+        send(event: itemEvent)
+        
+        // Request a new response that uses the tool result
+        let responseEvent: [String: Any] = [
+            "type": "response.create"
+        ]
+        send(event: responseEvent)
+        
+        // Clear pending function call state
+        pendingFunctionCallId = nil
+        pendingFunctionName = nil
+    }
+    
     private func configureSession() async {
         logger.info("Configuring session...")
+        
+        let systemInstructions = """
+            You are a helpful voice assistant integrated into Meta Ray-Ban smart glasses. 
+            
+            # Context
+            - The user is wearing Meta Ray-Ban AI glasses with a built-in camera
+            - You hear the user through the glasses microphone
+            - The user hears your responses through the glasses speakers
+            - This is a hands-free, eyes-up experience - keep responses concise
+            
+            # Capabilities
+            - You have access to the glasses camera via the take_photo tool
+            - When the user asks what they're looking at, seeing, or wants visual information about their surroundings, use the take_photo tool
+            - The tool will capture a photo and provide you with a description of what the camera sees
+            
+            # Guidelines
+            - Keep responses brief and conversational (1-3 sentences when possible)
+            - Respond in the same language the user speaks
+            - Be natural, helpful, and context-aware
+            - When describing what the user sees, be specific and helpful
+            """
+        
+        let takePhotoTool: [String: Any] = [
+            "type": "function",
+            "name": "take_photo",
+            "description": "Capture a photo from the user's smart glasses camera. Use this when the user asks about what they are seeing, looking at, or wants visual information about their surroundings. Examples: 'What am I looking at?', 'What's in front of me?', 'Can you see this?', 'What is this?', 'Describe what you see'.",
+            "parameters": [
+                "type": "object",
+                "properties": [:] as [String: Any],
+                "required": [] as [String]
+            ] as [String: Any]
+        ]
         
         let sessionConfig: [String: Any] = [
             "type": "session.update",
             "session": [
                 "modalities": ["text", "audio"],
-                "instructions": """
-                    You are a helpful voice assistant for smart glasses. Keep responses brief and conversational. 
-                    Respond in the same language the user speaks.
-                    Be natural and helpful. The user is wearing smart glasses and talking to you hands-free.
-                    """,
+                "instructions": systemInstructions,
                 "voice": "alloy",
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
@@ -692,10 +878,11 @@ final class RealtimeAPIClient: ObservableObject {
                     "type": "server_vad",
                     "threshold": 0.5,
                     "prefix_padding_ms": 300,
-                    "silence_duration_ms": 2000,  // 2 seconds pause before detecting end of speech
-                    "create_response": false       // Don't auto-respond, wait for trigger phrase
-                ] as [String: Any]
-            ]
+                    "silence_duration_ms": 2000,
+                    "create_response": false
+                ] as [String: Any],
+                "tools": [takePhotoTool]
+            ] as [String: Any]
         ]
         
         send(event: sessionConfig)
@@ -890,6 +1077,27 @@ final class RealtimeAPIClient: ObservableObject {
                 logger.info("🔇 No pending audio buffers, going idle")
             } else {
                 logger.info("⏳ Waiting for \(self.pendingAudioBufferCount) audio buffers to finish playing")
+            }
+            
+        case "response.output_item.added":
+            // Check if this is a function call item
+            if let item = json["item"] as? [String: Any],
+               let itemType = item["type"] as? String,
+               itemType == "function_call",
+               let callId = item["call_id"] as? String,
+               let name = item["name"] as? String {
+                logger.info("🔧 Function call started: \(name) (id: \(callId))")
+                pendingFunctionCallId = callId
+                pendingFunctionName = name
+            }
+            
+        case "response.function_call_arguments.done":
+            logger.info("🔧 Function call arguments complete")
+            if let callId = json["call_id"] as? String,
+               let name = json["name"] as? String {
+                Task {
+                    await handleFunctionCall(name: name, callId: callId, arguments: json["arguments"] as? String ?? "{}")
+                }
             }
             
         case "error":

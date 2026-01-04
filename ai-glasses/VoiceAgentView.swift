@@ -11,7 +11,16 @@ import os.log
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "VoiceAgentView")
 
 struct VoiceAgentView: View {
-    @StateObject private var client = RealtimeAPIClient(apiKey: Config.openAIAPIKey)
+    @ObservedObject var glassesManager: GlassesManager
+    @StateObject private var client: RealtimeAPIClient
+    
+    init(glassesManager: GlassesManager) {
+        self.glassesManager = glassesManager
+        self._client = StateObject(wrappedValue: RealtimeAPIClient(
+            apiKey: Config.openAIAPIKey,
+            glassesManager: glassesManager
+        ))
+    }
     
     var body: some View {
         NavigationStack {
@@ -399,5 +408,5 @@ private struct MicrophoneButton: View {
 }
 
 #Preview {
-    VoiceAgentView()
+    VoiceAgentView(glassesManager: GlassesManager())
 }

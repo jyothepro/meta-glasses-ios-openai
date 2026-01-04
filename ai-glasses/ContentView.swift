@@ -27,16 +27,17 @@ enum AppTab: Int {
 
 struct ContentView: View {
     @State private var selectedTab: AppTab = .glasses
+    @StateObject private var glassesManager = GlassesManager()
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            GlassesTab()
+            GlassesTab(glassesManager: glassesManager)
                 .tabItem {
                     Label("Glasses", systemImage: "eyeglasses")
                 }
                 .tag(AppTab.glasses)
             
-            VoiceAgentView()
+            VoiceAgentView(glassesManager: glassesManager)
                 .tabItem {
                     Label("Voice Agent", systemImage: "waveform.circle")
                 }
@@ -51,7 +52,7 @@ struct ContentView: View {
 // MARK: - Glasses Tab
 
 private struct GlassesTab: View {
-    @StateObject private var glassesManager = GlassesManager()
+    @ObservedObject var glassesManager: GlassesManager
     @State private var selectedMediaItem: MediaItem?
     
     var body: some View {
