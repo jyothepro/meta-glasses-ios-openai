@@ -1110,6 +1110,7 @@ final class RealtimeAPIClient: ObservableObject {
             // Auto-start listening after initial session configuration (not on settings updates)
             if voiceState == .idle {
                 startListening()
+                SoundManager.shared.playReadySound()
             }
             
         case "response.created":
@@ -1248,6 +1249,7 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "response.function_call_arguments.done":
             logger.info("🔧 Function call arguments complete")
+            SoundManager.shared.playToolCallSound()
             if let callId = json["call_id"] as? String,
                let name = json["name"] as? String {
                 Task {
