@@ -6,17 +6,66 @@
 //
 
 import SwiftUI
+import UIKit
 import os.log
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "SettingsView")
+
+// Wrapper for memory key to use with sheet(item:)
+private struct MemoryItem: Identifiable {
+    let id: String
+    let value: String
+}
+
+// MARK: - Custom TextView (avoids SwiftUI TextEditor frame bugs)
+
+private struct CustomTextView: UIViewRepresentable {
+    @Binding var text: String
+    
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.font = UIFont.preferredFont(forTextStyle: .body)
+        textView.backgroundColor = .clear
+        textView.delegate = context.coordinator
+        textView.isScrollEnabled = true
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        return textView
+    }
+    
+    func updateUIView(_ textView: UITextView, context: Context) {
+        if textView.text != text {
+            textView.text = text
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+    
+    final class Coordinator: NSObject, UITextViewDelegate {
+        @Binding var text: String
+        
+        init(text: Binding<String>) {
+            _text = text
+        }
+        
+        func textViewDidChange(_ textView: UITextView) {
+            text = textView.text
+        }
+        
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            // Place cursor at the end
+            let endPosition = textView.endOfDocument
+            textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
+        }
+    }
+}
 
 struct SettingsView: View {
     @ObservedObject var glassesManager: GlassesManager
     @ObservedObject private var settingsManager = SettingsManager.shared
     @State private var userPrompt: String = ""
-    @State private var selectedMemoryKey: String?
-    @State private var showingMemoryEditor = false
-    @FocusState private var isUserPromptFocused: Bool
+    @State private var selectedMemory: MemoryItem?
     
     var body: some View {
         NavigationStack {
@@ -34,9 +83,8 @@ struct SettingsView: View {
                 
                 // User Prompt Section
                 Section {
-                    TextEditor(text: $userPrompt)
-                        .frame(minHeight: 120)
-                        .focused($isUserPromptFocused)
+                    CustomTextView(text: $userPrompt)
+                        .frame(height: 120)
                         .onChange(of: userPrompt) { _, newValue in
                             settingsManager.userPrompt = newValue
                         }
@@ -58,8 +106,10 @@ struct SettingsView: View {
                                 key: key,
                                 value: settingsManager.memories[key] ?? "",
                                 onTap: {
-                                    selectedMemoryKey = key
-                                    showingMemoryEditor = true
+                                    selectedMemory = MemoryItem(
+                                        id: key,
+                                        value: settingsManager.memories[key] ?? ""
+                                    )
                                 }
                             )
                         }
@@ -77,34 +127,25 @@ struct SettingsView: View {
                 
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Settings")
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        isUserPromptFocused = false
-                    }
-                }
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
+            .navigationTitle("Settings")
             .onAppear {
                 userPrompt = settingsManager.userPrompt
             }
-            .sheet(isPresented: $showingMemoryEditor) {
-                if let key = selectedMemoryKey {
-                    MemoryEditorView(
-                        originalKey: key,
-                        originalValue: settingsManager.memories[key] ?? "",
-                        onSave: { newKey, newValue in
-                            settingsManager.updateMemory(oldKey: key, newKey: newKey, value: newValue)
-                            showingMemoryEditor = false
-                            selectedMemoryKey = nil
-                        },
-                        onCancel: {
-                            showingMemoryEditor = false
-                            selectedMemoryKey = nil
-                        }
-                    )
-                }
+            .sheet(item: $selectedMemory) { memory in
+                MemoryEditorView(
+                    originalKey: memory.id,
+                    originalValue: memory.value,
+                    onSave: { newKey, newValue in
+                        settingsManager.updateMemory(oldKey: memory.id, newKey: newKey, value: newValue)
+                        selectedMemory = nil
+                    },
+                    onCancel: {
+                        selectedMemory = nil
+                    }
+                )
             }
         }
     }
@@ -115,8 +156,7 @@ struct SettingsView: View {
     
     private func addMemory() {
         let newKey = settingsManager.addEmptyMemory()
-        selectedMemoryKey = newKey
-        showingMemoryEditor = true
+        selectedMemory = MemoryItem(id: newKey, value: "")
     }
     
     private func deleteMemories(at offsets: IndexSet) {
@@ -172,12 +212,6 @@ private struct MemoryEditorView: View {
     
     @State private var key: String = ""
     @State private var value: String = ""
-    @FocusState private var focusedField: Field?
-    
-    private enum Field {
-        case key
-        case value
-    }
     
     var body: some View {
         NavigationStack {
@@ -186,7 +220,6 @@ private struct MemoryEditorView: View {
                     TextField("Key", text: $key)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
-                        .focused($focusedField, equals: .key)
                 } header: {
                     Text("Key")
                 } footer: {
@@ -194,9 +227,8 @@ private struct MemoryEditorView: View {
                 }
                 
                 Section {
-                    TextEditor(text: $value)
-                        .frame(minHeight: 100)
-                        .focused($focusedField, equals: .value)
+                    CustomTextView(text: $value)
+                        .frame(height: 100)
                 } header: {
                     Text("Value")
                 } footer: {
@@ -204,6 +236,9 @@ private struct MemoryEditorView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             .navigationTitle(originalKey.starts(with: "new_memory") ? "New Memory" : "Edit Memory")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -216,13 +251,6 @@ private struct MemoryEditorView: View {
                         onSave(key, value)
                     }
                     .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        focusedField = nil
-                    }
                 }
             }
             .onAppear {
