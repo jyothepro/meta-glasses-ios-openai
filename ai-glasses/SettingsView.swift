@@ -93,7 +93,7 @@ struct SettingsView: View {
                 // Hardware Section
                 Section {
                     NavigationLink {
-                        GlassesTab(glassesManager: glassesManager)
+                        LazyView(GlassesTab(glassesManager: glassesManager))
                     } label: {
                         Label("Glasses", systemImage: "eyeglasses")
                     }

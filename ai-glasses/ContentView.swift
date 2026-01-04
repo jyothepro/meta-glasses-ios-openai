@@ -30,8 +30,9 @@ enum AppTab: Int {
 
 // MARK: - Lazy View
 
-/// Wrapper that delays View creation until it's actually displayed
-private struct LazyView<Content: View>: View {
+/// Wrapper that delays View creation until it's actually displayed.
+/// Use this in NavigationLink destinations to prevent blocking the UI during navigation.
+struct LazyView<Content: View>: View {
     let build: () -> Content
     
     init(_ build: @autoclosure @escaping () -> Content) {
