@@ -393,10 +393,16 @@ final class RealtimeAPIClient: ObservableObject {
     
     private func commitAudioBuffer() {
         logger.info("📤 Committing audio buffer")
-        let event: [String: String] = [
+        let commitEvent: [String: String] = [
             "type": "input_audio_buffer.commit"
         ]
-        send(event: event)
+        send(event: commitEvent)
+        
+        // Explicitly request response (required when turn_detection is disabled)
+        let responseEvent: [String: String] = [
+            "type": "response.create"
+        ]
+        send(event: responseEvent)
     }
     
     private func configureSession() async {
@@ -413,12 +419,7 @@ final class RealtimeAPIClient: ObservableObject {
                 "input_audio_transcription": [
                     "model": "whisper-1"
                 ],
-                "turn_detection": [
-                    "type": "server_vad",
-                    "threshold": 0.5,
-                    "prefix_padding_ms": 300,
-                    "silence_duration_ms": 800
-                ]
+                "turn_detection": NSNull()
             ]
         ]
         
@@ -490,14 +491,6 @@ final class RealtimeAPIClient: ObservableObject {
         case "session.updated":
             isSessionConfigured = true
             logger.info("✅ Session configured")
-            
-        case "input_audio_buffer.speech_started":
-            logger.info("🎤 Speech started (VAD detected)")
-            voiceState = .listening
-            
-        case "input_audio_buffer.speech_stopped":
-            logger.info("🎤 Speech stopped (VAD detected)")
-            voiceState = .processing
             
         case "response.audio.delta":
             if let delta = json["delta"] as? String,
