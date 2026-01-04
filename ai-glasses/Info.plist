@@ -14,6 +14,10 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Needed to save photos and videos from Meta Wearables to your library</string>
 	
+	<!-- Location permission for context-aware AI responses -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location helps the AI provide relevant local information like weather, nearby places, and time zone context</string>
+	
 	<!-- Allow Meta AI (fb-viewapp) to call the app -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

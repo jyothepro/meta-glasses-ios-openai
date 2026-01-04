@@ -164,13 +164,19 @@ final class RealtimeAPIClient: ObservableObject {
         - When providing search results, summarize the key information concisely
         """
     
-    /// Generate current time context string with timezone in ISO-8601 format
-    private func generateTimeContext() -> String {
+    /// Generate current time and location context string
+    private func generateContextInfo() -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         formatter.timeZone = TimeZone.current
         
-        return "\n\nCurrent time: \(formatter.string(from: Date()))"
+        var context = "\n\nCurrent time: \(formatter.string(from: Date()))"
+        
+        if let location = LocationManager.shared.locationString {
+            context += "\nUser location: \(location)"
+        }
+        
+        return context
     }
     
     // MARK: - Initialization
@@ -214,7 +220,7 @@ final class RealtimeAPIClient: ObservableObject {
             return
         }
         
-        let systemInstructions = baseInstructions + generateTimeContext() + SettingsManager.shared.generateInstructionsAddendum()
+        let systemInstructions = baseInstructions + generateContextInfo() + SettingsManager.shared.generateInstructionsAddendum()
         
         let updateEvent: [String: Any] = [
             "type": "session.update",
@@ -285,6 +291,9 @@ final class RealtimeAPIClient: ObservableObject {
             logger.warning("Already connecting or connected")
             return
         }
+        
+        // Request location permission if needed (for context in prompt)
+        LocationManager.shared.requestPermissionIfNeeded()
         
         connectionState = .connecting
         logger.info("Connecting to Realtime API...")
@@ -1160,7 +1169,7 @@ final class RealtimeAPIClient: ObservableObject {
         logger.info("Configuring session...")
         
         // Append time context, user memories, and additional instructions from settings
-        let systemInstructions = baseInstructions + generateTimeContext() + SettingsManager.shared.generateInstructionsAddendum()
+        let systemInstructions = baseInstructions + generateContextInfo() + SettingsManager.shared.generateInstructionsAddendum()
         
         let takePhotoTool: [String: Any] = [
             "type": "function",
