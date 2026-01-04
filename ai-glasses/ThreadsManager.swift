@@ -211,7 +211,7 @@ final class ThreadsManager: ObservableObject {
     
     /// Call fast model (Constants.fastModel) for quick text generation
     private func callGPT4oMini(prompt: String) async -> String? {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(Config.openAIAPIKey)", forHTTPHeaderField: "Authorization")

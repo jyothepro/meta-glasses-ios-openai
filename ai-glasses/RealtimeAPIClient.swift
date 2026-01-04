@@ -80,7 +80,7 @@ final class RealtimeAPIClient: ObservableObject {
     private let apiKey: String
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "RealtimeAPI")
     
-    private let realtimeURL = "wss://api.openai.com/v1/realtime?model=gpt-realtime"
+    private let realtimeURL = Constants.realtimeAPIURL
     
     // Audio Engine
     private var audioEngine: AVAudioEngine?
@@ -799,7 +799,7 @@ final class RealtimeAPIClient: ObservableObject {
     
     /// Call fast model (Constants.fastModel) for classification
     private func callFastLLM(prompt: String) async throws -> String {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -837,7 +837,7 @@ final class RealtimeAPIClient: ObservableObject {
     
     /// Call Perplexity Search API for web search
     private func callPerplexitySearch(query: String) async throws -> String {
-        let url = URL(string: "https://api.perplexity.ai/search")!
+        let url = URL(string: Constants.perplexitySearchURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(Config.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
@@ -1223,11 +1223,11 @@ final class RealtimeAPIClient: ObservableObject {
             "session": [
                 "modalities": ["text", "audio"],
                 "instructions": systemInstructions,
-                "voice": "marin",
+                "voice": Constants.realtimeVoice,
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "input_audio_transcription": [
-                    "model": "whisper-1"
+                    "model": Constants.whisperModel
                 ],
                 "turn_detection": [
                     "type": "server_vad",
