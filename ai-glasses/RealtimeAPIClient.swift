@@ -1497,18 +1497,19 @@ final class RealtimeAPIClient: ObservableObject {
                 logger.info("🔧 Function call started: \(name) (id: \(callId))")
                 pendingFunctionCallId = callId
                 pendingFunctionName = name
+                
+                // Play sound and show message immediately when tool call starts
+                SoundManager.shared.playToolCallSound()
+                let toolMessage = ChatMessage(isUser: false, text: toolCallDisplayText(name: name))
+                messages.append(toolMessage)
+                pendingToolMessageId = toolMessage.id
             }
             
         case "response.function_call_arguments.done":
             logger.info("🔧 Function call arguments complete")
-            SoundManager.shared.playToolCallSound()
+            // Sound and message already shown in response.output_item.added
             if let callId = json["call_id"] as? String,
                let name = json["name"] as? String {
-                // Add message to chat showing tool call
-                let toolMessage = ChatMessage(isUser: false, text: toolCallDisplayText(name: name))
-                messages.append(toolMessage)
-                pendingToolMessageId = toolMessage.id
-                
                 Task {
                     await handleFunctionCall(name: name, callId: callId, arguments: json["arguments"] as? String ?? "{}")
                 }
