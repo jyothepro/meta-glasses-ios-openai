@@ -446,14 +446,6 @@ private struct MuteButton: View {
     var body: some View {
         Button(action: onToggleMute) {
             ZStack {
-                // Pulsing background when listening and not muted
-                if voiceState == .listening && !isMuted {
-                    Circle()
-                        .fill(Color.blue.opacity(0.3))
-                        .frame(width: 80 + CGFloat(audioLevel * 30), height: 80 + CGFloat(audioLevel * 30))
-                        .animation(.easeInOut(duration: 0.1), value: audioLevel)
-                }
-                
                 // Main button circle
                 Circle()
                     .fill(buttonColor)
@@ -464,6 +456,17 @@ private struct MuteButton: View {
                 Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
                     .font(.title)
                     .foregroundColor(.white)
+            }
+            // Fixed frame prevents layout jumping when glow animates
+            .frame(width: 110, height: 110)
+            // Pulsing background when listening and not muted (as background to not affect layout)
+            .background {
+                if voiceState == .listening && !isMuted {
+                    Circle()
+                        .fill(Color.blue.opacity(0.3))
+                        .frame(width: 80 + CGFloat(audioLevel * 30), height: 80 + CGFloat(audioLevel * 30))
+                        .animation(.easeInOut(duration: 0.1), value: audioLevel)
+                }
             }
         }
     }
