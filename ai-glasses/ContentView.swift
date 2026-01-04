@@ -15,13 +15,11 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glass
 
 enum AppTab: Int {
     case voiceAgent = 0
-    case glasses = 1
-    case settings = 2
+    case settings = 1
     
     var name: String {
         switch self {
         case .voiceAgent: return "Voice Agent"
-        case .glasses: return "Glasses"
         case .settings: return "Settings"
         }
     }
@@ -56,13 +54,7 @@ struct ContentView: View {
                         }
                         .tag(AppTab.voiceAgent)
                     
-                    GlassesTab(glassesManager: glassesManager)
-                        .tabItem {
-                            Label("Glasses", systemImage: "eyeglasses")
-                        }
-                        .tag(AppTab.glasses)
-                    
-                    SettingsView()
+                    SettingsView(glassesManager: glassesManager)
                         .tabItem {
                             Label("Settings", systemImage: "gearshape")
                         }
@@ -100,7 +92,7 @@ private struct LoadingView: View {
 
 // MARK: - Glasses Tab
 
-private struct GlassesTab: View {
+struct GlassesTab: View {
     @ObservedObject var glassesManager: GlassesManager
     @State private var selectedMediaItem: MediaItem?
     

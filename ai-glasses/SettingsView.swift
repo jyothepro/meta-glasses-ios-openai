@@ -11,6 +11,7 @@ import os.log
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ai-glasses", category: "SettingsView")
 
 struct SettingsView: View {
+    @ObservedObject var glassesManager: GlassesManager
     @ObservedObject private var settingsManager = SettingsManager.shared
     @State private var userPrompt: String = ""
     @State private var selectedMemoryKey: String?
@@ -20,6 +21,17 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Developer Section
+                Section {
+                    NavigationLink {
+                        GlassesTab(glassesManager: glassesManager)
+                    } label: {
+                        Label("Glasses", systemImage: "eyeglasses")
+                    }
+                } header: {
+                    Text("Developer")
+                }
+                
                 // User Prompt Section
                 Section {
                     TextEditor(text: $userPrompt)
@@ -222,5 +234,5 @@ private struct MemoryEditorView: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(glassesManager: GlassesManager())
 }
