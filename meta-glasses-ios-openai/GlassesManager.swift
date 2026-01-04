@@ -597,6 +597,103 @@ final class GlassesManager: ObservableObject {
         }
     }
     
+    // MARK: - Async Photo Capture (unified method)
+    
+    /// Capture photo, save to Photo Library and Captured Media, return photo data
+    /// This is the unified method for both UI and tool calling
+    func capturePhotoAsync() async throws -> Data {
+        Log.glasses.info("📸 capturePhotoAsync: Starting...")
+        
+        guard let selector = deviceSelector else {
+            Log.glasses.error("❌ No device selector for photo capture")
+            throw NSError(
+                domain: "GlassesManager",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Connect to glasses first"]
+            )
+        }
+        
+        // Check camera permission
+        let cameraStatus = try await wearables.checkPermissionStatus(.camera)
+        if cameraStatus != .granted {
+            Log.glasses.info("📷 Requesting camera permission for photo...")
+            let newStatus = try await wearables.requestPermission(.camera)
+            if newStatus != .granted {
+                Log.glasses.error("❌ Camera permission denied")
+                throw NSError(
+                    domain: "GlassesManager",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Camera permission denied"]
+                )
+            }
+        }
+        
+        // Use existing stream session or create temporary one
+        let useExistingStream = streamSession != nil
+        let session: StreamSession
+        
+        if useExistingStream {
+            session = streamSession!
+            Log.glasses.info("📸 Using existing stream session")
+        } else {
+            Log.glasses.info("📸 Creating temporary stream for photo capture")
+            let config = StreamSessionConfig(
+                videoCodec: .raw,
+                resolution: .high,
+                frameRate: 30
+            )
+            session = StreamSession(streamSessionConfig: config, deviceSelector: selector)
+            await session.start()
+            // Small delay to ensure stream is ready
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
+        }
+        
+        // Capture photo and wait for result
+        let photoData: Data = try await withCheckedThrowingContinuation { continuation in
+            var hasResumed = false
+            
+            let photoToken = session.photoDataPublisher.listen { (photo: PhotoData) in
+                guard !hasResumed else { return }
+                hasResumed = true
+                Log.glasses.info("📸 Photo received: \(photo.data.count) bytes")
+                continuation.resume(returning: photo.data)
+            }
+            
+            // Trigger photo capture
+            session.capturePhoto(format: .jpeg)
+            
+            // Timeout task
+            Task {
+                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 sec timeout
+                await photoToken.cancel()
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(throwing: NSError(
+                    domain: "GlassesManager",
+                    code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Photo capture timed out"]
+                ))
+            }
+        }
+        
+        // Stop temporary session if we created one
+        if !useExistingStream {
+            await session.stop()
+            Log.glasses.info("📸 Temporary stream stopped")
+        }
+        
+        // Save to Photo Library
+        savePhotoToLibrary(imageData: photoData)
+        
+        // Save to Captured Media
+        let mediaItem = MediaItem.photo(id: UUID(), data: photoData, timestamp: Date())
+        capturedMedia.insert(mediaItem, at: 0)
+        saveMediaList()
+        
+        Log.glasses.info("📸 capturePhotoAsync: Complete, saved to library and captured media")
+        return photoData
+    }
+    
     // MARK: - Quick Video Recording (with temporary stream)
     
     /// Start video recording - will start stream if not already streaming

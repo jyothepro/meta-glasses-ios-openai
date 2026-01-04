@@ -1108,75 +1108,40 @@ final class RealtimeAPIClient: ObservableObject {
     }
     
     /// Capture a photo from the glasses and return the image data
+    /// Uses unified capturePhotoAsync() which also saves to Photo Library and Captured Media
     private func capturePhotoFromGlasses() async throws -> Data {
-        return try await withCheckedThrowingContinuation { continuation in
-            Task { @MainActor in
-                // Check if glasses are registered
-                guard glassesManager.isRegistered else {
-                    continuation.resume(throwing: NSError(
-                        domain: "RealtimeAPI",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Glasses not registered. Please register in the Glasses tab first."]
-                    ))
-                    return
-                }
-                
-                // Check if glasses are connected, try to connect if not
-                if !glassesManager.connectionState.isConnected {
-                    logger.info("👓 Glasses not connected, attempting to connect...")
-                    glassesManager.startSearching()
-                    
-                    // Wait a bit for connection
-                    try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
-                    
-                    // Check again after waiting
-                    if !glassesManager.connectionState.isConnected {
-                        continuation.resume(throwing: NSError(
-                            domain: "RealtimeAPI",
-                            code: 3,
-                            userInfo: [NSLocalizedDescriptionKey: "Could not connect to glasses. Make sure they are nearby and powered on."]
-                        ))
-                        return
-                    }
-                }
-                
-                // Start observing for new photos
-                let startCount = glassesManager.capturedMedia.count
-                
-                // Trigger photo capture
-                glassesManager.capturePhoto()
-                
-                // Poll for new photo (with timeout)
-                Task {
-                    let maxWaitTime: TimeInterval = 40.0
-                    let pollInterval: TimeInterval = 0.25
-                    var elapsed: TimeInterval = 0
-                    
-                    while elapsed < maxWaitTime {
-                        try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
-                        elapsed += pollInterval
-                        
-                        // Check if we got a new photo
-                        let currentCount = await MainActor.run { glassesManager.capturedMedia.count }
-                        if currentCount > startCount {
-                            // Get the newest photo
-                            let media = await MainActor.run { glassesManager.capturedMedia }
-                            if let newest = media.first,
-                               case .photo(_, let data, _) = newest {
-                                continuation.resume(returning: data)
-                                return
-                            }
-                        }
-                    }
-                    
-                    continuation.resume(throwing: NSError(
-                        domain: "RealtimeAPI",
-                        code: 2,
-                        userInfo: [NSLocalizedDescriptionKey: "Photo capture timed out. Make sure glasses are connected."]
-                    ))
-                }
+        // Check if glasses are registered
+        let isRegistered = await MainActor.run { glassesManager.isRegistered }
+        guard isRegistered else {
+            throw NSError(
+                domain: "RealtimeAPI",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Glasses not registered. Please register in the Glasses tab first."]
+            )
+        }
+        
+        // Check if glasses are connected, try to connect if not
+        let isConnected = await MainActor.run { glassesManager.connectionState.isConnected }
+        if !isConnected {
+            logger.info("👓 Glasses not connected, attempting to connect...")
+            await MainActor.run { glassesManager.startSearching() }
+            
+            // Wait a bit for connection
+            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+            
+            // Check again after waiting
+            let isConnectedNow = await MainActor.run { glassesManager.connectionState.isConnected }
+            if !isConnectedNow {
+                throw NSError(
+                    domain: "RealtimeAPI",
+                    code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Could not connect to glasses. Make sure they are nearby and powered on."]
+                )
             }
         }
+        
+        // Use unified capture method that saves to Photo Library and Captured Media
+        return try await glassesManager.capturePhotoAsync()
     }
     
     /// Send tool result back to the Realtime API
