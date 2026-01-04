@@ -14,6 +14,7 @@ struct VoiceAgentView: View {
     @ObservedObject var glassesManager: GlassesManager
     @StateObject private var client: RealtimeAPIClient
     @ObservedObject private var threadsManager = ThreadsManager.shared
+    @ObservedObject private var permissionsManager = PermissionsManager.shared
     
     init(glassesManager: GlassesManager) {
         self.glassesManager = glassesManager
@@ -26,41 +27,81 @@ struct VoiceAgentView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if client.connectionState == .connected {
-                    // Connected state: show conversation UI
-                    ConnectedView(
-                        client: client,
-                        onDisconnect: {
-                            logger.info("🔌 Disconnect button tapped")
-                            client.disconnect()
+                // Check microphone permission first
+                switch permissionsManager.microphoneStatus {
+                case .notDetermined:
+                    // Pre-permission priming screen
+                    MicrophonePermissionView(
+                        state: .priming,
+                        onRequestPermission: {
+                            logger.info("🎤 Requesting microphone permission")
+                            permissionsManager.requestMicrophone()
                         },
-                        onToggleMute: {
-                            logger.info("🎤 Toggle mute tapped")
-                            client.toggleMute()
-                        },
-                        onForceResponse: {
-                            logger.info("🔘 Force response tapped")
-                            client.forceResponse()
+                        onOpenSettings: {
+                            permissionsManager.openAppSettings()
                         }
                     )
-                } else {
-                    // Disconnected/connecting/error state: show welcome screen
-                    WelcomeView(
-                        connectionState: client.connectionState,
-                        onConnect: {
-                            logger.info("🔌 Connect button tapped")
-                            client.connect()
+                    
+                case .denied, .restricted:
+                    // Permission denied screen
+                    MicrophonePermissionView(
+                        state: .denied,
+                        onRequestPermission: {
+                            permissionsManager.requestMicrophone()
+                        },
+                        onOpenSettings: {
+                            logger.info("⚙️ Opening app settings for microphone")
+                            permissionsManager.openAppSettings()
                         }
                     )
+                    
+                case .authorized, .limited:
+                    // Normal flow - microphone available
+                    if client.connectionState == .connected {
+                        // Connected state: show conversation UI
+                        ConnectedView(
+                            client: client,
+                            onDisconnect: {
+                                logger.info("🔌 Disconnect button tapped")
+                                client.disconnect()
+                            },
+                            onToggleMute: {
+                                logger.info("🎤 Toggle mute tapped")
+                                client.toggleMute()
+                            },
+                            onForceResponse: {
+                                logger.info("🔘 Force response tapped")
+                                client.forceResponse()
+                            }
+                        )
+                    } else {
+                        // Disconnected/connecting/error state: show welcome screen
+                        WelcomeView(
+                            connectionState: client.connectionState,
+                            onConnect: {
+                                logger.info("🔌 Connect button tapped")
+                                client.connect()
+                            }
+                        )
+                    }
                 }
             }
             .navigationTitle("Voice Agent")
             .onAppear {
                 logger.info("📱 Voice Agent tab appeared")
+                // Refresh permission status (user may have changed it in Settings)
+                permissionsManager.refreshAll()
                 checkPendingContinuation()
             }
             .onDisappear {
                 logger.info("📱 Voice Agent tab disappeared")
+            }
+            .onChange(of: permissionsManager.microphoneStatus) { oldValue, newValue in
+                // When permission changes to authorized, check for pending thread continuation
+                if newValue == .authorized && oldValue != .authorized {
+                    logger.info("🎤 Microphone permission granted")
+                    checkPendingContinuation()
+                }
             }
         }
     }
@@ -68,6 +109,13 @@ struct VoiceAgentView: View {
     /// Check if there's a pending thread continuation and auto-connect
     private func checkPendingContinuation() {
         guard let threadId = threadsManager.pendingContinuationThreadId else { return }
+        
+        // Don't auto-connect if microphone not authorized - let user see permission screen first
+        guard permissionsManager.microphoneStatus == .authorized else {
+            logger.info("⏸️ Pending thread continuation waiting for microphone permission")
+            // Keep the pending thread ID so it will auto-connect after permission granted
+            return
+        }
         
         // Clear the pending continuation
         threadsManager.pendingContinuationThreadId = nil
@@ -500,6 +548,105 @@ private struct MuteButton: View {
         case .processing: return .orange
         case .speaking: return .purple
         }
+    }
+}
+
+// MARK: - Microphone Permission View
+
+enum MicrophonePermissionState {
+    case priming      // Before first system request
+    case denied       // User denied permission
+}
+
+private struct MicrophonePermissionView: View {
+    let state: MicrophonePermissionState
+    let onRequestPermission: () -> Void
+    let onOpenSettings: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 32) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: state == .priming
+                                    ? [Color.blue.opacity(0.2), Color.purple.opacity(0.2)]
+                                    : [Color.orange.opacity(0.2), Color.red.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                    
+                    Image(systemName: state == .priming ? "mic.fill" : "mic.slash.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: state == .priming ? [.blue, .purple] : [.orange, .red],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                // Text
+                VStack(spacing: 12) {
+                    Text(state == .priming ? "Microphone Access Required" : "Microphone Access Denied")
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
+                    
+                    Text(state == .priming
+                         ? "Voice Agent needs microphone access to hear you.\nThis is a voice-first experience — without the microphone, it cannot work."
+                         : "You've previously denied microphone access.\nTo use Voice Agent, please enable it in Settings.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                // Action button
+                VStack(spacing: 16) {
+                    if state == .priming {
+                        Button(action: onRequestPermission) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "mic.fill")
+                                Text("Allow Microphone")
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: 240)
+                            .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                    } else {
+                        Button(action: onOpenSettings) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "gear")
+                                Text("Open Settings")
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: 240)
+                            .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        
+                        Text("After enabling, return to the app")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
     }
 }
 
