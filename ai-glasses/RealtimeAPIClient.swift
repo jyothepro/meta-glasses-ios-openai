@@ -104,6 +104,9 @@ final class RealtimeAPIClient: ObservableObject {
     private var recentTranscripts: [String] = []
     private let maxRecentTranscripts = 5
     
+    // Track if response is currently active (for barge-in)
+    private var isResponseActive = false
+    
     // MARK: - Initialization
     
     init(apiKey: String) {
@@ -214,8 +217,8 @@ final class RealtimeAPIClient: ObservableObject {
         
         logger.info("🔘 Force response requested")
         
-        // Commit any pending audio first
-        commitAudioBuffer()
+        // Note: With Server VAD, the buffer is automatically committed when speech stops,
+        // so we just need to request a response - no need to commit again
         
         // Request response
         requestResponse()
@@ -472,6 +475,23 @@ final class RealtimeAPIClient: ObservableObject {
         send(event: responseEvent)
     }
     
+    /// Cancel current response (for barge-in)
+    private func cancelResponse() {
+        logger.info("🚫 Cancelling current response")
+        let cancelEvent: [String: String] = [
+            "type": "response.cancel"
+        ]
+        send(event: cancelEvent)
+    }
+    
+    /// Stop audio playback immediately
+    private func stopPlayback() {
+        playerNode?.stop()
+        // Clear any scheduled buffers by stopping and restarting
+        playerNode?.play()
+        logger.info("🔇 Playback stopped")
+    }
+    
     /// Ask a fast LLM to determine if user expects a response
     private func shouldRespondToUser(_ transcript: String) async -> Bool {
         // Build context from recent conversation
@@ -651,6 +671,12 @@ final class RealtimeAPIClient: ObservableObject {
             isSessionConfigured = true
             logger.info("✅ Session configured")
             
+        case "response.created":
+            logger.info("📝 New response started")
+            // Clear transcript for new response
+            assistantTranscript = ""
+            isResponseActive = true
+            
         case "response.audio.delta":
             if let delta = json["delta"] as? String,
                let audioData = Data(base64Encoded: delta) {
@@ -671,6 +697,8 @@ final class RealtimeAPIClient: ObservableObject {
                 assistantTranscript = transcript
                 messages.append(ChatMessage(isUser: false, text: transcript))
                 logger.info("🤖 Assistant: \(transcript)")
+                // Clear for next response
+                assistantTranscript = ""
             }
             
         case "conversation.item.input_audio_transcription.completed":
@@ -705,6 +733,17 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "input_audio_buffer.speech_started":
             logger.info("🎙️ Speech started (VAD)")
+            
+            // Barge-in: stop AI response if user starts talking
+            if voiceState == .speaking || isResponseActive {
+                logger.info("🛑 Barge-in: stopping AI response")
+                stopPlayback()
+                if isResponseActive {
+                    cancelResponse()
+                    isResponseActive = false
+                }
+            }
+            
             voiceState = .listening
             // Add placeholder for user message
             if pendingUserMessageId == nil {
@@ -722,14 +761,20 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "response.done":
             logger.info("✅ Response complete")
+            isResponseActive = false
             voiceState = .idle
             
         case "error":
             if let error = json["error"] as? [String: Any],
                let message = error["message"] as? String {
-                logger.error("❌ Server error: \(message)")
-                connectionState = .error(message)
-                voiceState = .idle
+                // Ignore cancellation errors - they're expected when barge-in happens after response completes
+                if message.contains("Cancellation failed") || message.contains("no active response") {
+                    logger.info("ℹ️ Cancellation skipped (response already completed)")
+                } else {
+                    logger.error("❌ Server error: \(message)")
+                    connectionState = .error(message)
+                    voiceState = .idle
+                }
             }
             
         default:
