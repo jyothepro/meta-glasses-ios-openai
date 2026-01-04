@@ -79,7 +79,7 @@ meta-glasses-ios-openai/
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Author
 
