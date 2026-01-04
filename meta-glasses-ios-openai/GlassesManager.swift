@@ -649,14 +649,26 @@ final class GlassesManager: ObservableObject {
         }
         
         // Capture photo and wait for result
+        // Use actor for thread-safe continuation state
+        actor ContinuationState {
+            private var hasResumed = false
+            
+            func tryResume() -> Bool {
+                if hasResumed { return false }
+                hasResumed = true
+                return true
+            }
+        }
+        
         let photoData: Data = try await withCheckedThrowingContinuation { continuation in
-            var hasResumed = false
+            let state = ContinuationState()
             
             let photoToken = session.photoDataPublisher.listen { (photo: PhotoData) in
-                guard !hasResumed else { return }
-                hasResumed = true
-                Log.glasses.info("📸 Photo received: \(photo.data.count) bytes")
-                continuation.resume(returning: photo.data)
+                Task {
+                    guard await state.tryResume() else { return }
+                    Log.glasses.info("📸 Photo received: \(photo.data.count) bytes")
+                    continuation.resume(returning: photo.data)
+                }
             }
             
             // Trigger photo capture
@@ -666,8 +678,7 @@ final class GlassesManager: ObservableObject {
             Task {
                 try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 sec timeout
                 await photoToken.cancel()
-                guard !hasResumed else { return }
-                hasResumed = true
+                guard await state.tryResume() else { return }
                 continuation.resume(throwing: NSError(
                     domain: "GlassesManager",
                     code: 3,
