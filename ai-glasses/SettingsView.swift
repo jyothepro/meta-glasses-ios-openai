@@ -99,6 +99,17 @@ struct SettingsView: View {
                     Text("AI")
                 }
                 
+                // Privacy Section
+                Section {
+                    NavigationLink {
+                        PermissionsView()
+                    } label: {
+                        Label("Permissions", systemImage: "hand.raised")
+                    }
+                } header: {
+                    Text("Privacy")
+                }
+                
                 // Threads Section
                 Section {
                     Button {
@@ -497,6 +508,209 @@ private struct AIToolRow: View {
                 Image(systemName: tool.icon)
                     .foregroundColor(.accentColor)
             }
+        }
+    }
+}
+
+// MARK: - Permissions View
+
+private struct PermissionsView: View {
+    @ObservedObject private var permissionsManager = PermissionsManager.shared
+    @Environment(\.scenePhase) private var scenePhase
+    
+    var body: some View {
+        List {
+            ForEach(PermissionType.allCases) { permission in
+                NavigationLink {
+                    PermissionDetailView(permission: permission)
+                } label: {
+                    PermissionRow(
+                        permission: permission,
+                        status: permissionsManager.status(for: permission)
+                    )
+                }
+            }
+        }
+        .navigationTitle("Permissions")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            permissionsManager.refreshAll()
+        }
+        .onChange(of: scenePhase) {
+            // Refresh when returning from Settings app
+            if scenePhase == .active {
+                permissionsManager.refreshAll()
+            }
+        }
+    }
+}
+
+// MARK: - Permission Row
+
+private struct PermissionRow: View {
+    let permission: PermissionType
+    let status: PermissionStatus
+    
+    private var statusColor: Color {
+        switch status {
+        case .notDetermined: return .orange
+        case .authorized: return .green
+        case .denied: return .red
+        case .restricted: return .gray
+        case .limited: return .yellow
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: permission.icon)
+                .font(.title3)
+                .foregroundColor(.accentColor)
+                .frame(width: 28)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(permission.rawValue)
+                    .font(.body)
+                
+                Text(status.rawValue)
+                    .font(.caption)
+                    .foregroundColor(statusColor)
+            }
+            
+            Spacer()
+            
+            Image(systemName: status.systemImage)
+                .foregroundColor(statusColor)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Permission Detail View
+
+private struct PermissionDetailView: View {
+    let permission: PermissionType
+    
+    @ObservedObject private var permissionsManager = PermissionsManager.shared
+    @Environment(\.scenePhase) private var scenePhase
+    
+    private var status: PermissionStatus {
+        permissionsManager.status(for: permission)
+    }
+    
+    private var statusColor: Color {
+        switch status {
+        case .notDetermined: return .orange
+        case .authorized: return .green
+        case .denied: return .red
+        case .restricted: return .gray
+        case .limited: return .yellow
+        }
+    }
+    
+    var body: some View {
+        Form {
+            // Status Section
+            Section {
+                HStack {
+                    Image(systemName: status.systemImage)
+                        .font(.title)
+                        .foregroundColor(statusColor)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Current Status")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(status.rawValue)
+                            .font(.headline)
+                            .foregroundColor(statusColor)
+                    }
+                    .padding(.leading, 8)
+                }
+                .padding(.vertical, 8)
+            }
+            
+            // Description Section
+            Section {
+                if status == .authorized || status == .limited {
+                    Text(permission.descriptionWhenAllowed)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                } else {
+                    Text(permission.descriptionWhenDenied)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                }
+            } header: {
+                Text(status == .authorized || status == .limited ? "What This Enables" : "What You're Missing")
+            }
+            
+            // Action Section
+            Section {
+                if status == .notDetermined {
+                    Button {
+                        requestPermission()
+                    } label: {
+                        HStack {
+                            Image(systemName: "hand.raised.fill")
+                            Text("Request Permission")
+                        }
+                    }
+                } else if status == .denied || status == .restricted {
+                    Button {
+                        permissionsManager.openAppSettings()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gear")
+                            Text("Open Settings")
+                        }
+                    }
+                } else if status == .authorized || status == .limited {
+                    Button {
+                        permissionsManager.openAppSettings()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gear")
+                            Text("Manage in Settings")
+                        }
+                    }
+                    
+                    Text("To revoke this permission, go to Settings and disable it.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Actions")
+            } footer: {
+                if status == .notDetermined {
+                    Text("Tap to show the system permission dialog.")
+                } else if status == .denied || status == .restricted {
+                    Text("iOS requires you to change this permission in Settings.")
+                }
+            }
+        }
+        .navigationTitle(permission.rawValue)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            permissionsManager.refreshAll()
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active {
+                permissionsManager.refreshAll()
+            }
+        }
+    }
+    
+    private func requestPermission() {
+        switch permission {
+        case .location:
+            permissionsManager.requestLocation()
+        case .microphone:
+            permissionsManager.requestMicrophone()
+        case .photoLibrary:
+            permissionsManager.requestPhotoLibrary()
+        case .bluetooth:
+            permissionsManager.requestBluetooth()
         }
     }
 }
