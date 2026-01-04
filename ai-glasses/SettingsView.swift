@@ -63,25 +63,6 @@ struct SettingsView: View {
                     Text("The AI can add, update, or delete memories during conversations. You can also manage them here.")
                 }
                 
-                // Info Section
-                Section {
-                    HStack {
-                        Text("Storage Location")
-                        Spacer()
-                        Text("Documents/settings.json")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
-                    
-                    HStack {
-                        Text("Total Memories")
-                        Spacer()
-                        Text("\(settingsManager.memories.count)")
-                            .foregroundColor(.secondary)
-                    }
-                } header: {
-                    Text("Info")
-                }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Settings")
