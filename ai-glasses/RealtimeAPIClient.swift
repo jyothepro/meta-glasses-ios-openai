@@ -998,6 +998,8 @@ final class RealtimeAPIClient: ObservableObject {
         case "session.updated":
             isSessionConfigured = true
             logger.info("✅ Session configured")
+            // Auto-start listening after session is configured
+            startListening()
             
         case "response.created":
             logger.info("📝 New response started")
