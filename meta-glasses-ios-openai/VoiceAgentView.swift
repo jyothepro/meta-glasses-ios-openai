@@ -33,11 +33,11 @@ struct VoiceAgentView: View {
     @StateObject private var client: RealtimeAPIClient
     @ObservedObject private var threadsManager = ThreadsManager.shared
     @ObservedObject private var permissionsManager = PermissionsManager.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
     
     init(glassesManager: GlassesManager) {
         self.glassesManager = glassesManager
         self._client = StateObject(wrappedValue: RealtimeAPIClient(
-            apiKey: Config.openAIAPIKey,
             glassesManager: glassesManager
         ))
     }
@@ -101,33 +101,39 @@ struct VoiceAgentView: View {
                         )
                         
                     case .authorized, .limited:
-                        // Normal flow - both Bluetooth and microphone available
-                        if client.connectionState == .connected {
-                            // Connected state: show conversation UI
-                            ConnectedView(
-                                client: client,
-                                onDisconnect: {
-                                    logger.info("🔌 Disconnect button tapped")
-                                    client.disconnect()
-                                },
-                                onToggleMute: {
-                                    logger.info("🎤 Toggle mute tapped")
-                                    client.toggleMute()
-                                },
-                                onForceResponse: {
-                                    logger.info("🔘 Force response tapped")
-                                    client.forceResponse()
-                                }
-                            )
+                        // Microphone OK - now check OpenAI API key
+                        if !settingsManager.isOpenAIConfigured {
+                            // API key not configured - show blocking screen
+                            APIKeyMissingView()
                         } else {
-                            // Disconnected/connecting/error state: show welcome screen
-                            WelcomeView(
-                                connectionState: client.connectionState,
-                                onConnect: {
-                                    logger.info("🔌 Connect button tapped")
-                                    client.connect()
-                                }
-                            )
+                            // Normal flow - all requirements met
+                            if client.connectionState == .connected {
+                                // Connected state: show conversation UI
+                                ConnectedView(
+                                    client: client,
+                                    onDisconnect: {
+                                        logger.info("🔌 Disconnect button tapped")
+                                        client.disconnect()
+                                    },
+                                    onToggleMute: {
+                                        logger.info("🎤 Toggle mute tapped")
+                                        client.toggleMute()
+                                    },
+                                    onForceResponse: {
+                                        logger.info("🔘 Force response tapped")
+                                        client.forceResponse()
+                                    }
+                                )
+                            } else {
+                                // Disconnected/connecting/error state: show welcome screen
+                                WelcomeView(
+                                    connectionState: client.connectionState,
+                                    onConnect: {
+                                        logger.info("🔌 Connect button tapped")
+                                        client.connect()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -808,6 +814,70 @@ private struct BluetoothPermissionView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                }
+            }
+            
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - API Key Missing View
+
+private struct APIKeyMissingView: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 32) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.red.opacity(0.2), Color.orange.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                    
+                    Image(systemName: "key.slash")
+                        .font(.system(size: 56))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.red, .orange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                // Text
+                VStack(spacing: 12) {
+                    Text("OpenAI API Key Required")
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
+                    
+                    Text("To use Voice Agent, you need to configure your OpenAI API key.\n\nGo to Settings → AI → Models → OpenAI")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                // Info about getting key
+                VStack(spacing: 8) {
+                    Text("Get your API key at:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("platform.openai.com/api-keys")
+                        .font(.caption)
+                        .foregroundColor(.blue)
                 }
             }
             

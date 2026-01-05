@@ -231,7 +231,7 @@ final class ThreadsManager: ObservableObject {
         let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(Config.openAIAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(SettingsManager.shared.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [

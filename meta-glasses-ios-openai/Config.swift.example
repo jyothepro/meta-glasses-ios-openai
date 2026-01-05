@@ -6,37 +6,36 @@
 //
 //  Setup:
 //  1. Copy this file to Config.swift
-//  2. Replace the placeholders with your actual API keys
+//  2. Optionally add your API keys below (or configure them in-app)
+//
+//  Note: Both API keys are OPTIONAL at build time.
+//  You can configure them later in the app:
+//  - OpenAI: Settings → AI → Models → OpenAI
+//  - Perplexity: Settings → AI → AI Tools → search_internet
+//
+//  If you provide keys here, they will be used as default values on first launch.
 //
 
 import Foundation
 
 enum Config {
     // ============================================================================
-    // REQUIRED: OpenAI API Key
+    // OPTIONAL: OpenAI API Key
     // ============================================================================
     // Get one at: https://platform.openai.com/api-keys
     // Must have access to Realtime API (gpt-4o-realtime)
     //
-    static let openAIAPIKey = "your-openai-api-key-here"
+    // Leave empty "" to configure in app Settings → AI → Models → OpenAI
+    //
+    static let openAIAPIKey = ""
     
     // ============================================================================
     // OPTIONAL: Perplexity API Key
     // ============================================================================
     // Get one at: https://www.perplexity.ai/settings/api
     //
-    // Leave empty "" to disable search_internet tool.
-    // Everything else will work normally without it.
+    // Leave empty "" to disable search_internet tool or configure later
+    // in app Settings → AI → AI Tools → search_internet
     //
     static let perplexityAPIKey = ""
-    
-    // ============================================================================
-    // Helpers (do not modify)
-    // ============================================================================
-    
-    /// Returns true if Perplexity API key is configured and valid
-    static var isPerplexityConfigured: Bool {
-        !perplexityAPIKey.isEmpty &&
-        perplexityAPIKey != "your-perplexity-api-key-here"
-    }
 }

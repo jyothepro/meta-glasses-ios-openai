@@ -77,7 +77,8 @@ final class RealtimeAPIClient: ObservableObject {
     // MARK: - Private Properties
     
     private var webSocket: URLSessionWebSocketTask?
-    private let apiKey: String
+    private var urlSession: URLSession?
+    private var sessionDelegate: WebSocketDelegate?
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "RealtimeAPI")
     
     private let realtimeURL = Constants.realtimeAPIURL
@@ -157,7 +158,7 @@ final class RealtimeAPIClient: ObservableObject {
         """
         
         // Only include search_internet if Perplexity is configured
-        if Config.isPerplexityConfigured {
+        if SettingsManager.shared.isPerplexityConfigured {
             instructions += """
             
             - You can search the internet via the search_internet tool
@@ -175,7 +176,7 @@ final class RealtimeAPIClient: ObservableObject {
         - When describing what the user sees, be specific and helpful
         """
         
-        if Config.isPerplexityConfigured {
+        if SettingsManager.shared.isPerplexityConfigured {
             instructions += """
             
             - When providing search results, summarize the key information concisely
@@ -221,8 +222,7 @@ final class RealtimeAPIClient: ObservableObject {
     
     // MARK: - Initialization
     
-    init(apiKey: String, glassesManager: GlassesManager) {
-        self.apiKey = apiKey
+    init(glassesManager: GlassesManager) {
         self.glassesManager = glassesManager
         setupAudioInterruptionHandling()
         setupSettingsObserver()
@@ -367,15 +367,32 @@ final class RealtimeAPIClient: ObservableObject {
         }
         
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(SettingsManager.shared.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
         
-        let session = URLSession(configuration: .default)
-        webSocket = session.webSocketTask(with: request)
+        // Create delegate to capture connection errors
+        sessionDelegate = WebSocketDelegate { [weak self] error in
+            Task { @MainActor in
+                guard let self = self, self.connectionState == .connecting else { return }
+                self.connectionState = .error(error)
+            }
+        }
+        
+        urlSession = URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: nil)
+        webSocket = urlSession?.webSocketTask(with: request)
         webSocket?.resume()
         
         // Start receiving messages
         receiveMessage()
+        
+        // Connection timeout - if not connected within 10 seconds, show error
+        Task {
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            if connectionState == .connecting {
+                connectionState = .error("Connection timeout. Check your API key and network connection.")
+                disconnect()
+            }
+        }
         
         // Configure session after connection
         Task {
@@ -842,7 +859,7 @@ final class RealtimeAPIClient: ObservableObject {
         let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(SettingsManager.shared.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 3 // Fast timeout - we need quick response
         
@@ -880,7 +897,7 @@ final class RealtimeAPIClient: ObservableObject {
         let url = URL(string: Constants.perplexitySearchURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(Config.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(SettingsManager.shared.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 15
         
@@ -1210,7 +1227,7 @@ final class RealtimeAPIClient: ObservableObject {
         // Build tools array - search_internet is only available if Perplexity is configured
         var tools: [[String: Any]] = [takePhotoTool, manageMemoryTool]
         
-        if Config.isPerplexityConfigured {
+        if SettingsManager.shared.isPerplexityConfigured {
             let searchInternetTool: [String: Any] = [
                 "type": "function",
                 "name": "search_internet",
@@ -1312,10 +1329,46 @@ final class RealtimeAPIClient: ObservableObject {
                     
                 case .failure(let error):
                     // Ignore errors when we're already disconnected (expected on manual disconnect)
-                    if self.connectionState != .disconnected {
-                        self.logger.error("Receive error: \(error.localizedDescription)")
-                        self.connectionState = .error(error.localizedDescription)
+                    guard self.connectionState != .disconnected else { return }
+                    
+                    // Don't overwrite a specific error message with generic socket error
+                    // (e.g., server sent "Incorrect API key" then socket closed)
+                    if case .error(_) = self.connectionState {
+                        self.logger.info("Socket closed after error was already set, ignoring: \(error.localizedDescription)")
+                        return
                     }
+                    
+                    self.logger.error("Receive error: \(error.localizedDescription)")
+                    
+                    // Parse error for more meaningful message
+                    let nsError = error as NSError
+                    let errorDesc = error.localizedDescription.lowercased()
+                    var errorMessage = error.localizedDescription
+                    
+                    // Check for specific WebSocket/HTTP errors
+                    if nsError.domain == "NSPOSIXErrorDomain" && nsError.code == 57 {
+                        // Socket not connected - likely auth failure if we were still connecting
+                        if self.connectionState == .connecting {
+                            errorMessage = "Authentication failed. Check your OpenAI API key in Settings → AI → Models"
+                        } else {
+                            errorMessage = "Connection lost. Check your network."
+                        }
+                    } else if errorDesc.contains("401") || errorDesc.contains("unauthorized") || errorDesc.contains("invalid api key") {
+                        errorMessage = "Invalid API key. Check Settings → AI → Models → OpenAI"
+                    } else if errorDesc.contains("403") || errorDesc.contains("forbidden") {
+                        errorMessage = "API key doesn't have Realtime API access"
+                    } else if errorDesc.contains("429") || errorDesc.contains("rate limit") {
+                        errorMessage = "Rate limit exceeded. Please wait and try again."
+                    } else if errorDesc.contains("socket is not connected") || errorDesc.contains("not connected") {
+                        // Generic socket error during connection = likely auth issue
+                        if self.connectionState == .connecting {
+                            errorMessage = "Connection rejected. Verify your OpenAI API key is valid and has Realtime API access."
+                        } else {
+                            errorMessage = "Connection lost unexpectedly."
+                        }
+                    }
+                    
+                    self.connectionState = .error(errorMessage)
                 }
             }
         }
@@ -1542,5 +1595,118 @@ final class RealtimeAPIClient: ObservableObject {
         default:
             logger.debug("Event: \(eventType)")
         }
+    }
+}
+
+// MARK: - WebSocket Delegate
+
+/// Delegate to capture WebSocket connection errors (e.g., authentication failures)
+private class WebSocketDelegate: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate {
+    private let onError: (String) -> Void
+    private var errorAlreadyReported = false
+    
+    init(onError: @escaping (String) -> Void) {
+        self.onError = onError
+    }
+    
+    private func reportError(_ message: String) {
+        // Only report first error - subsequent errors are usually cascading effects
+        guard !errorAlreadyReported else { return }
+        errorAlreadyReported = true
+        onError(message)
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            // Extract meaningful error message
+            let nsError = error as NSError
+            let errorDesc = error.localizedDescription.lowercased()
+            var errorMessage = error.localizedDescription
+            
+            // Check for HTTP response status code if available
+            if let httpResponse = (task as? URLSessionWebSocketTask)?.response as? HTTPURLResponse {
+                switch httpResponse.statusCode {
+                case 401:
+                    errorMessage = "Invalid API key. Check Settings → AI → Models → OpenAI"
+                    reportError(errorMessage)
+                    return
+                case 403:
+                    errorMessage = "API key doesn't have Realtime API access. Verify permissions at platform.openai.com"
+                    reportError(errorMessage)
+                    return
+                case 429:
+                    errorMessage = "Rate limit exceeded. Please wait and try again."
+                    reportError(errorMessage)
+                    return
+                case 500...599:
+                    errorMessage = "OpenAI server error. Please try again later."
+                    reportError(errorMessage)
+                    return
+                default:
+                    break
+                }
+            }
+            
+            // Check for specific error codes
+            if nsError.domain == NSURLErrorDomain {
+                switch nsError.code {
+                case NSURLErrorNotConnectedToInternet:
+                    errorMessage = "No internet connection"
+                case NSURLErrorTimedOut:
+                    errorMessage = "Connection timed out"
+                case NSURLErrorCannotConnectToHost:
+                    errorMessage = "Cannot connect to OpenAI servers"
+                case NSURLErrorUserAuthenticationRequired:
+                    errorMessage = "Invalid API key. Check Settings → AI → Models → OpenAI"
+                default:
+                    // Check error description for auth hints
+                    if errorDesc.contains("401") || errorDesc.contains("unauthorized") {
+                        errorMessage = "Invalid API key. Check Settings → AI → Models → OpenAI"
+                    }
+                }
+            } else if nsError.domain == "NSPOSIXErrorDomain" && nsError.code == 57 {
+                // Socket not connected - often indicates auth failure during handshake
+                errorMessage = "Connection failed. Verify your OpenAI API key is valid."
+            }
+            
+            reportError(errorMessage)
+        }
+    }
+    
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        var errorMessage = "Connection closed"
+        
+        // Parse close reason if available - OpenAI often includes error details here
+        if let reason = reason, let reasonString = String(data: reason, encoding: .utf8), !reasonString.isEmpty {
+            // Try to parse as JSON for structured error
+            if let json = try? JSONSerialization.jsonObject(with: reason) as? [String: Any],
+               let error = json["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                errorMessage = message
+            } else {
+                errorMessage = reasonString
+            }
+        } else {
+            // Map close codes to human-readable messages
+            switch closeCode {
+            case .invalid:
+                errorMessage = "Invalid connection"
+            case .policyViolation:
+                errorMessage = "Authentication failed. Check your OpenAI API key."
+            case .internalServerError:
+                errorMessage = "OpenAI server error. Please try again later."
+            case .normalClosure:
+                // Normal closure - don't report as error
+                return
+            default:
+                errorMessage = "Connection closed unexpectedly (code: \(closeCode.rawValue))"
+            }
+        }
+        
+        reportError(errorMessage)
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        completionHandler(.performDefaultHandling, nil)
     }
 }

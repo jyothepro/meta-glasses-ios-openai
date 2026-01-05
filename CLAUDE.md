@@ -16,12 +16,14 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
    - `meta-glasses-ios-openai/Config.swift.example` → `meta-glasses-ios-openai/Config.swift`
 
 2. Fill in your credentials:
-   - `Config.xcconfig`: Bundle ID, Meta App ID
-   - `Config.swift`: OpenAI API key
+   - `Config.xcconfig`: Bundle ID, Meta App ID (required)
+   - `Config.swift`: API keys (optional - can be configured in-app)
 
 3. Open `meta-glasses-ios-openai.xcodeproj` in Xcode
 
 4. Build and run on physical iOS device
+
+5. Configure API keys in app: Settings → AI → Models (OpenAI) or AI Tools (Perplexity)
 
 ## SDK Documentation
 
@@ -45,7 +47,7 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 ### Voice Agent Tab
 - `RealtimeAPIClient` - WebSocket client for OpenAI Realtime API with audio capture/playback
 - `VoiceAgentView` - UI for voice conversations with OpenAI
-- `Config` - API keys (copy `meta-glasses-ios-openai/Config.swift.example` → `meta-glasses-ios-openai/Config.swift`)
+- `Config` - default API keys at build time (optional, can be configured in-app)
 
 ### Threads Tab
 - `ThreadsManager` - singleton for conversation history persistence to Documents/threads.json
@@ -54,7 +56,8 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 
 ### Settings Tab
 - `SettingsManager` - singleton for settings persistence to Documents/settings.json
-- `SettingsView` - UI for editing user prompt and memories
+- `SettingsView` - UI for editing settings
+- API keys: OpenAI and Perplexity keys (Settings → AI → Models / AI Tools)
 - User prompt: additional instructions appended to system prompt
 - Memories: key-value pairs the AI can read and manage
 - Live updates: changes to settings send `session.update` to active session (debounced 500ms)
@@ -93,4 +96,4 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 - Physical iOS device (simulator doesn't support Bluetooth)
 - Meta Ray-Ban smart glasses paired with device
 - Meta App ID from https://developer.meta.com
-- OpenAI API key with Realtime API access
+- OpenAI API key with Realtime API access (can be configured in-app: Settings → AI → Models)

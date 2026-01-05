@@ -16,8 +16,32 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-gla
 struct AppSettings: Codable {
     var userPrompt: String
     var memories: [String: String]
+    var openAIAPIKey: String
+    var perplexityAPIKey: String
     
-    static let empty = AppSettings(userPrompt: "", memories: [:])
+    static let empty = AppSettings(
+        userPrompt: "",
+        memories: [:],
+        openAIAPIKey: Config.openAIAPIKey,
+        perplexityAPIKey: Config.perplexityAPIKey
+    )
+    
+    /// Custom decoder to handle missing fields during migration
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userPrompt = try container.decodeIfPresent(String.self, forKey: .userPrompt) ?? ""
+        memories = try container.decodeIfPresent([String: String].self, forKey: .memories) ?? [:]
+        // Use Config values as defaults for new fields (migration support)
+        openAIAPIKey = try container.decodeIfPresent(String.self, forKey: .openAIAPIKey) ?? Config.openAIAPIKey
+        perplexityAPIKey = try container.decodeIfPresent(String.self, forKey: .perplexityAPIKey) ?? Config.perplexityAPIKey
+    }
+    
+    init(userPrompt: String, memories: [String: String], openAIAPIKey: String, perplexityAPIKey: String) {
+        self.userPrompt = userPrompt
+        self.memories = memories
+        self.openAIAPIKey = openAIAPIKey
+        self.perplexityAPIKey = perplexityAPIKey
+    }
 }
 
 // MARK: - Settings Manager
@@ -53,6 +77,37 @@ final class SettingsManager: ObservableObject {
     
     var memories: [String: String] {
         settings.memories
+    }
+    
+    var openAIAPIKey: String {
+        get { settings.openAIAPIKey }
+        set {
+            settings.openAIAPIKey = newValue
+            scheduleSave()
+        }
+    }
+    
+    var perplexityAPIKey: String {
+        get { settings.perplexityAPIKey }
+        set {
+            settings.perplexityAPIKey = newValue
+            scheduleSave()
+        }
+    }
+    
+    // MARK: - API Key Status
+    
+    var isOpenAIConfigured: Bool {
+        !settings.openAIAPIKey.isEmpty
+    }
+    
+    var isPerplexityConfigured: Bool {
+        !settings.perplexityAPIKey.isEmpty
+    }
+    
+    /// Returns 1 if OpenAI API key is not configured, otherwise 0
+    var missingAPIKeysCount: Int {
+        isOpenAIConfigured ? 0 : 1
     }
     
     // MARK: - Memory Management

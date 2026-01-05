@@ -55,18 +55,20 @@ The project requires two config files (both are gitignored for security):
 
 Copy each `.example` file (remove the `.example` suffix) and fill in your values:
 
-**Config.xcconfig** — Xcode build settings:
+**Config.xcconfig** — Xcode build settings (required):
 ```
 PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.metaglasses
 DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
 META_APP_ID = YOUR_META_APP_ID_HERE
 ```
 
-**Config.swift** — API keys:
+**Config.swift** — API keys (optional at build time):
 ```swift
-static let openAIAPIKey = "sk-..."        // Required
-static let perplexityAPIKey = "pplx-..."  // Optional (leave empty to disable search)
+static let openAIAPIKey = ""              // Optional: configure in app or set here as default
+static let perplexityAPIKey = ""          // Optional: leave empty to disable search
 ```
+
+> 💡 **API keys can be configured in-app.** You can leave `Config.swift` keys empty and add them later in Settings → AI → Models (OpenAI) or AI Tools (Perplexity). Keys set in `Config.swift` are used as defaults on first launch.
 
 ### 3. Build and run
 
@@ -83,6 +85,8 @@ Open `meta-glasses-ios-openai.xcodeproj` in Xcode → Run on physical iOS device
 | Meta App ID | [developer.meta.com](https://developer.meta.com) |
 | OpenAI API key | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Perplexity API key *(optional)* | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
+
+> 💡 **API keys can be added in the app.** You don't need to set them at build time — configure them in Settings → AI → Models (OpenAI) or AI Tools → search_internet (Perplexity).
 
 > 💡 **Perplexity API key is optional.** Without it, the `search_internet` tool will be disabled but everything else works normally.
 

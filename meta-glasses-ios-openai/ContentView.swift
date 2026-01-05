@@ -48,6 +48,7 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .voiceAgent
     @StateObject private var glassesManager = GlassesManager()
     @ObservedObject private var permissionsManager = PermissionsManager.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
     
     var body: some View {
         Group {
@@ -73,7 +74,9 @@ struct ContentView: View {
                         }
                         .tag(AppTab.settings)
                         .badge({
-                            let total = permissionsManager.missingRequiredPermissionsCount + glassesManager.glassesErrorCount
+                            let total = permissionsManager.missingRequiredPermissionsCount
+                                      + glassesManager.glassesErrorCount
+                                      + settingsManager.missingAPIKeysCount
                             return total > 0 ? total : 0
                         }())
                 }

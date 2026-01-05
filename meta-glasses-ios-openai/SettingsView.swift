@@ -62,6 +62,7 @@ private struct CustomTextView: UIViewRepresentable {
 struct SettingsView: View {
     @ObservedObject var glassesManager: GlassesManager
     @ObservedObject private var permissionsManager = PermissionsManager.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
     @State private var isRegeneratingTitles: Bool = false
     @State private var showingRegenerateResult: Bool = false
     @State private var regeneratedCount: Int = 0
@@ -77,8 +78,44 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Hardware Section
+                Section {
+                    NavigationLink {
+                        LazyView(GlassesTab(glassesManager: glassesManager))
+                    } label: {
+                        HStack {
+                            Label("Glasses", systemImage: "eyeglasses")
+                            Spacer()
+                            if glassesManager.glassesErrorCount > 0 {
+                                Text("\(glassesManager.glassesErrorCount)")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Hardware")
+                }
+                
                 // AI Settings
                 Section {
+                    NavigationLink {
+                        ModelsListView()
+                    } label: {
+                        HStack {
+                            Label("Models", systemImage: "cpu")
+                            Spacer()
+                            if !settingsManager.isOpenAIConfigured {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                    
                     NavigationLink {
                         AdditionalInstructionsView()
                     } label: {
@@ -94,7 +131,13 @@ struct SettingsView: View {
                     NavigationLink {
                         AIToolsListView()
                     } label: {
-                        Label("AI Tools", systemImage: "wrench.and.screwdriver")
+                        HStack {
+                            Label("AI Tools", systemImage: "wrench.and.screwdriver")
+                            Spacer()
+                            Text("\(settingsManager.isPerplexityConfigured ? 3 : 2)/3")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 } header: {
                     Text("AI")
@@ -144,29 +187,6 @@ struct SettingsView: View {
                     .disabled(isRegeneratingTitles)
                 } header: {
                     Text("Threads")
-                }
-                
-                // Hardware Section
-                Section {
-                    NavigationLink {
-                        LazyView(GlassesTab(glassesManager: glassesManager))
-                    } label: {
-                        HStack {
-                            Label("Glasses", systemImage: "eyeglasses")
-                            Spacer()
-                            if glassesManager.glassesErrorCount > 0 {
-                                Text("\(glassesManager.glassesErrorCount)")
-                                    .font(.caption2.bold())
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.red)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Hardware")
                 }
                 
                 // App Info
@@ -412,54 +432,71 @@ private struct AIToolDefinition: Identifiable {
 // MARK: - AI Tools List View
 
 private struct AIToolsListView: View {
-    private let tools: [AIToolDefinition] = [
-        AIToolDefinition(
-            name: "take_photo",
-            icon: "camera.fill",
-            description: "Capture a photo from the user's smart glasses camera. Use this when the user asks about what they are seeing, looking at, or wants visual information about their surroundings.",
-            parameters: []
-        ),
-        AIToolDefinition(
-            name: "manage_memory",
-            icon: "brain",
-            description: "Store or update a memory about the user. Use when user shares personal info, preferences, or asks to remember something. Pass empty value to delete a memory.",
-            parameters: [
-                AIToolParameter(
-                    name: "key",
-                    type: "string",
-                    description: "Memory identifier in snake_case (e.g. 'user_name', 'preferred_language', 'favorite_food')",
-                    isRequired: true
-                ),
-                AIToolParameter(
-                    name: "value",
-                    type: "string",
-                    description: "Value to store. Pass empty string to delete the memory.",
-                    isRequired: true
-                )
-            ]
-        ),
-        AIToolDefinition(
-            name: "search_internet",
-            icon: "magnifyingglass",
-            description: "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
-            parameters: [
-                AIToolParameter(
-                    name: "query",
-                    type: "string",
-                    description: "Search query in natural language, one sentence",
-                    isRequired: true
-                )
-            ],
-            isActive: Config.isPerplexityConfigured,
-            inactiveReason: "Add Perplexity API key in Config.swift to enable"
-        )
-    ]
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    
+    private var standardTools: [AIToolDefinition] {
+        [
+            AIToolDefinition(
+                name: "take_photo",
+                icon: "camera.fill",
+                description: "Capture a photo from the user's smart glasses camera. Use this when the user asks about what they are seeing, looking at, or wants visual information about their surroundings.",
+                parameters: []
+            ),
+            AIToolDefinition(
+                name: "manage_memory",
+                icon: "brain",
+                description: "Store or update a memory about the user. Use when user shares personal info, preferences, or asks to remember something. Pass empty value to delete a memory.",
+                parameters: [
+                    AIToolParameter(
+                        name: "key",
+                        type: "string",
+                        description: "Memory identifier in snake_case (e.g. 'user_name', 'preferred_language', 'favorite_food')",
+                        isRequired: true
+                    ),
+                    AIToolParameter(
+                        name: "value",
+                        type: "string",
+                        description: "Value to store. Pass empty string to delete the memory.",
+                        isRequired: true
+                    )
+                ]
+            )
+        ]
+    }
     
     var body: some View {
         List {
             Section {
-                ForEach(tools) { tool in
+                ForEach(standardTools) { tool in
                     AIToolRow(tool: tool)
+                }
+                
+                // search_internet tool with NavigationLink for configuration
+                NavigationLink {
+                    SearchInternetToolView()
+                } label: {
+                    HStack(spacing: 8) {
+                        Label {
+                            Text("search_internet")
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundColor(settingsManager.isPerplexityConfigured ? .primary : .secondary)
+                        } icon: {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(settingsManager.isPerplexityConfigured ? .accentColor : .secondary)
+                        }
+                        
+                        if !settingsManager.isPerplexityConfigured {
+                            Text("Inactive")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.15))
+                                .foregroundColor(.orange)
+                                .cornerRadius(4)
+                        }
+                    }
                 }
             } footer: {
                 Text("Want more tools? Please contact the developer of this app.")
@@ -468,6 +505,102 @@ private struct AIToolsListView: View {
         }
         .navigationTitle("AI Tools")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Search Internet Tool View
+
+private struct SearchInternetToolView: View {
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    @State private var apiKey: String = ""
+    @FocusState private var isKeyFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        Form {
+            Section {
+                Text("Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Description")
+            }
+            
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("query")
+                            .font(.footnote)
+                            .fontWeight(.medium)
+                        
+                        Text("string")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
+                            .cornerRadius(4)
+                        
+                        Text("required")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15))
+                            .foregroundColor(.orange)
+                            .cornerRadius(4)
+                    }
+                    
+                    Text("Search query in natural language, one sentence")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Parameters")
+            }
+            
+            Section {
+                SecureField("Perplexity API Key", text: $apiKey)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                    .focused($isKeyFieldFocused)
+            } header: {
+                Text("API Key")
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    if apiKey.isEmpty {
+                        Text("Optional. Add API key to enable web search.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Tool enabled")
+                                .foregroundColor(.green)
+                        }
+                    }
+                    Text("Get your API key at perplexity.ai/settings/api")
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture {
+            isKeyFieldFocused = false
+        }
+        .navigationTitle("search_internet")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    settingsManager.perplexityAPIKey = apiKey
+                    settingsManager.saveNow()
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            apiKey = settingsManager.perplexityAPIKey
+        }
     }
 }
 
@@ -573,6 +706,104 @@ private struct AIToolRow: View {
                         .cornerRadius(4)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Models List View
+
+private struct ModelsListView: View {
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    
+    var body: some View {
+        List {
+            Section {
+                NavigationLink {
+                    OpenAIModelView()
+                } label: {
+                    HStack {
+                        Label("OpenAI", systemImage: "cpu")
+                        Spacer()
+                        if !settingsManager.isOpenAIConfigured {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            } footer: {
+                Text("Configure API keys for AI models used by the voice assistant.")
+            }
+        }
+        .navigationTitle("Models")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - OpenAI Model View
+
+private struct OpenAIModelView: View {
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    @State private var apiKey: String = ""
+    @FocusState private var isKeyFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        Form {
+            Section {
+                SecureField("API Key", text: $apiKey)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                    .focused($isKeyFieldFocused)
+            } header: {
+                Text("API Key")
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    if apiKey.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.red)
+                            Text("Required for voice conversations")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    Text("Get your API key at platform.openai.com/api-keys")
+                }
+            }
+            
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This API key is used for:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Voice conversations (Realtime API)", systemImage: "waveform")
+                        Label("Thread title generation", systemImage: "text.quote")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Usage")
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture {
+            isKeyFieldFocused = false
+        }
+        .navigationTitle("OpenAI")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    settingsManager.openAIAPIKey = apiKey
+                    settingsManager.saveNow()
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            apiKey = settingsManager.openAIAPIKey
         }
     }
 }
