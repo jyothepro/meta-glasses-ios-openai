@@ -882,14 +882,24 @@ final class GlassesManager: ObservableObject {
         videoFrameListenerToken = session.videoFramePublisher.listen { [weak self] (frame: VideoFrame) in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                
+
+                // Convert frame to UIImage once for all consumers
+                let image = frame.makeUIImage()
+
                 // Append frame to video recorder if recording
                 if self.videoRecorder.recordingInProgress {
-                    if let image = frame.makeUIImage() {
+                    if let image = image {
                         self.videoRecorder.appendFrame(image: image)
                     }
                 }
-                
+
+                // Append frame to RTMP stream if live streaming
+                if RTMPStreamManager.shared.state.isLive {
+                    if let image = image {
+                        RTMPStreamManager.shared.appendVideoFrame(image)
+                    }
+                }
+
                 self.streamFrameCount += 1
                 // Log every 100th frame to avoid spam
                 if self.streamFrameCount == 1 || self.streamFrameCount % 100 == 0 {

@@ -97,6 +97,27 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    NavigationLink {
+                        StreamingSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Streaming", systemImage: "dot.radiowaves.left.and.right")
+                            Spacer()
+                            if RTMPStreamManager.shared.state.isLive {
+                                Text("LIVE")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            } else if !RTMPStreamManager.shared.settings.isConfigured {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    }
                 } header: {
                     Text("Hardware")
                 }
