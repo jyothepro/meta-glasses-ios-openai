@@ -259,8 +259,8 @@ final class GymCoachManager: ObservableObject {
         let exerciseInfo = getExerciseInfo(exercise)
         let prompt = buildAnalysisPrompt(exercise: exercise, info: exerciseInfo)
 
-        // Convert image to base64
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        // Convert image to base64 (high quality for accurate form analysis)
+        guard let imageData = image.jpegData(compressionQuality: 0.85) else {
             throw CoachingError.imageConversionFailed
         }
         let base64Image = imageData.base64EncodedString()
@@ -278,32 +278,34 @@ final class GymCoachManager: ObservableObject {
 
     private func buildAnalysisPrompt(exercise: String, info: ExerciseInfo) -> String {
         return """
-        You are an expert fitness coach analyzing a user's exercise form through their smart glasses camera.
-        The user is looking at themselves in a gym mirror, so the image shows their reflection.
+        You are an expert fitness coach watching a user perform \(exercise) through their smart glasses.
+        The image shows their reflection in a gym mirror.
 
-        **Exercise:** \(exercise)
+        **CRITICAL: Analyze ONLY what you actually SEE in this specific image.**
 
-        **Key Form Points to Check:**
-        \(info.formCues.map { "- \($0)" }.joined(separator: "\n"))
+        Look at the user's CURRENT body position and tell them:
+        1. What you observe about their form RIGHT NOW (be specific - mention body parts, angles, positions)
+        2. ONE specific adjustment they should make based on what you see
+        3. If their form looks good, tell them exactly what they're doing well
 
-        **Common Mistakes to Watch For:**
-        \(info.commonMistakes.map { "- \($0)" }.joined(separator: "\n"))
+        **Be extremely specific.** Instead of generic advice, describe what you actually see:
+        - BAD: "Keep your back straight" (generic)
+        - GOOD: "I see your lower back rounding - squeeze your core and think about sticking your chest out"
 
-        **Instructions:**
-        1. Analyze the user's current form in the image
-        2. Identify any form issues or areas for improvement
-        3. Provide 1-2 specific, actionable corrections (if needed)
-        4. Keep feedback brief and encouraging (will be spoken aloud)
-        5. If form looks good, give positive reinforcement
+        - BAD: "Good form" (too vague)
+        - GOOD: "Your elbow position is perfect, staying right at your sides"
 
-        **Response Format:**
-        Respond in 1-3 short sentences that can be spoken naturally. Be specific but concise.
-        Example good responses:
-        - "Good depth on that squat! Try to keep your chest up a bit more."
-        - "Watch your elbow position - keep them tucked closer to your body."
-        - "Excellent form! Maintain that controlled tempo."
+        - BAD: "Watch your knees" (generic)
+        - GOOD: "Your left knee is caving inward a bit - push it out over your toe"
 
-        Do NOT use bullet points or formatting. Just natural speech.
+        **Response rules:**
+        - 1-2 sentences MAX (this will be spoken aloud)
+        - Describe what you SEE, not what they SHOULD do in general
+        - Be encouraging but honest
+        - If you can't see the relevant body parts clearly, say so
+        - No bullet points, just natural speech
+
+        Respond now based on what you see in this image:
         """
     }
 
@@ -329,7 +331,7 @@ final class GymCoachManager: ObservableObject {
                             "type": "image_url",
                             "image_url": [
                                 "url": "data:image/jpeg;base64,\(imageBase64)",
-                                "detail": "low" // Use low detail for faster/cheaper analysis
+                                "detail": "high" // Use high detail for accurate form analysis
                             ]
                         ]
                     ]
