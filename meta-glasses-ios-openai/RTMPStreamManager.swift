@@ -11,6 +11,7 @@ import UIKit
 import Combine
 import os.log
 import HaishinKit
+import RTMPHaishinKit
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-glasses-ios-openai", category: "RTMPStreamManager")
 
@@ -228,8 +229,10 @@ final class RTMPStreamManager: ObservableObject {
 
     // MARK: - Private Properties
 
-    private var rtmpConnection: RTMPConnection?
-    private var rtmpStream: RTMPStream?
+    // Using nonisolated(unsafe) because RTMPConnection and RTMPStream are actors
+    // and we need to access them from MainActor context
+    nonisolated(unsafe) private var rtmpConnection: RTMPConnection?
+    nonisolated(unsafe) private var rtmpStream: RTMPStream?
     private var startTime: Date?
     private var statisticsTimer: Timer?
     private var frameCount: Int = 0
@@ -271,14 +274,18 @@ final class RTMPStreamManager: ObservableObject {
     }
 
     /// Stop streaming
-    func stopStreaming() {
+    func stopStreaming() async {
         logger.info("Stopping RTMP stream")
 
         statisticsTimer?.invalidate()
         statisticsTimer = nil
 
-        rtmpStream?.close()
-        rtmpConnection?.close()
+        if let stream = rtmpStream {
+            await stream.close()
+        }
+        if let connection = rtmpConnection {
+            await connection.close()
+        }
 
         stopAudioCapture()
 
@@ -295,7 +302,7 @@ final class RTMPStreamManager: ObservableObject {
 
     /// Append a video frame to the stream
     func appendVideoFrame(_ image: UIImage) {
-        guard state == .live, let rtmpStream = rtmpStream else { return }
+        guard state == .live, let stream = rtmpStream else { return }
 
         // Convert UIImage to CMSampleBuffer and append
         guard let cgImage = image.cgImage else { return }
@@ -325,16 +332,21 @@ final class RTMPStreamManager: ObservableObject {
         let context = CIContext()
         context.render(ciImage, to: buffer)
 
-        // Append to stream
-        rtmpStream.append(buffer, when: CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 1000000000))
+        // Append to stream using Task to handle actor isolation
+        let currentTime = CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 1000000000)
+        Task {
+            await stream.append(buffer, when: currentTime)
+        }
 
         frameCount += 1
     }
 
     /// Append audio sample buffer to the stream
     func appendAudioBuffer(_ sampleBuffer: CMSampleBuffer) {
-        guard state == .live, let rtmpStream = rtmpStream else { return }
-        rtmpStream.append(sampleBuffer)
+        guard state == .live, let stream = rtmpStream else { return }
+        Task {
+            await stream.append(sampleBuffer)
+        }
     }
 
     /// Save settings to disk
@@ -354,22 +366,15 @@ final class RTMPStreamManager: ObservableObject {
         guard settings.isConfigured else { return false }
 
         let testConnection = RTMPConnection()
+        let urlString = settings.fullRTMPURL
 
-        return await withCheckedContinuation { continuation in
-            Task { @MainActor in
-                // Parse URL components
-                let urlString = settings.fullRTMPURL
-
-                testConnection.connect(urlString)
-
-                // Wait briefly and check status
-                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
-
-                let isConnected = testConnection.connected
-                testConnection.close()
-
-                continuation.resume(returning: isConnected)
-            }
+        do {
+            _ = try await testConnection.connect(urlString)
+            await testConnection.close()
+            return true
+        } catch {
+            logger.warning("Test connection failed: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -377,46 +382,36 @@ final class RTMPStreamManager: ObservableObject {
 
     private func setupAndConnect() async throws {
         // Create RTMP connection
-        rtmpConnection = RTMPConnection()
-
-        guard let connection = rtmpConnection else {
-            throw StreamError.connectionFailed
-        }
+        let connection = RTMPConnection()
+        rtmpConnection = connection
 
         // Create RTMP stream
-        rtmpStream = RTMPStream(connection: connection)
-
-        guard let stream = rtmpStream else {
-            throw StreamError.streamCreationFailed
-        }
+        let stream = await RTMPStream(connection: connection)
+        rtmpStream = stream
 
         // Configure video settings
-        await stream.setVideoSettings(
-            VideoCodecSettings(
-                videoSize: settings.quality.resolution,
-                bitRate: settings.quality.videoBitrate,
-                frameInterval: Double(settings.fps)
-            )
+        var videoSettings = VideoCodecSettings(
+            videoSize: settings.quality.resolution,
+            bitRate: settings.quality.videoBitrate
         )
+        // Set frame interval based on FPS (frameInterval = 1/fps)
+        videoSettings.frameInterval = 1.0 / Double(settings.fps)
+        try await stream.setVideoSettings(videoSettings)
 
         // Configure audio settings
-        await stream.setAudioSettings(
-            AudioCodecSettings(
-                bitRate: settings.audioBitrate
-            )
+        let audioSettings = AudioCodecSettings(
+            bitRate: settings.audioBitrate
         )
+        try await stream.setAudioSettings(audioSettings)
 
         // Connect to server
         let urlString = settings.fullRTMPURL
         logger.info("Connecting to: \(urlString.prefix(50))...")
 
-        connection.connect(urlString)
+        _ = try await connection.connect(urlString)
 
-        // Wait for connection
-        try await waitForConnection()
-
-        // Start publishing
-        await stream.publish()
+        // Start publishing (empty string for stream name uses default)
+        _ = try await stream.publish("")
 
         state = .live
         startTime = Date()
@@ -424,19 +419,6 @@ final class RTMPStreamManager: ObservableObject {
         startAudioCapture()
 
         logger.info("RTMP stream is now live!")
-    }
-
-    private func waitForConnection() async throws {
-        // Poll for connection status
-        for _ in 0..<30 { // 30 attempts, 100ms each = 3 seconds timeout
-            try await Task.sleep(nanoseconds: 100_000_000)
-
-            if let connection = rtmpConnection, connection.connected {
-                return
-            }
-        }
-
-        throw StreamError.connectionTimeout
     }
 
     private func startStatisticsTimer() {

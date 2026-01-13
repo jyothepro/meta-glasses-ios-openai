@@ -404,10 +404,10 @@ struct StreamControlView: View {
     // MARK: - Methods
 
     private func toggleStreaming() {
-        if streamManager.state.isLive {
-            streamManager.stopStreaming()
-        } else {
-            Task {
+        Task {
+            if streamManager.state.isLive {
+                await streamManager.stopStreaming()
+            } else {
                 do {
                     try await streamManager.startStreaming()
                 } catch {

@@ -11,6 +11,7 @@
 		EDEF71ED2F09AD9200B9B793 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDEF71EC2F09AD9200B9B793 /* MWDATCore */; };
 		EDEF71EF2F09AD9200B9B793 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDEF71EE2F09AD9200B9B793 /* MWDATMockDevice */; };
 		EDFF00012F10000000000001 /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = EDFF00002F10000000000001 /* HaishinKit */; };
+		EDFF00032F10000000000002 /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = EDFF00042F10000000000002 /* RTMPHaishinKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +78,7 @@
 				EDEF71EF2F09AD9200B9B793 /* MWDATMockDevice in Frameworks */,
 				EDEF71ED2F09AD9200B9B793 /* MWDATCore in Frameworks */,
 				EDFF00012F10000000000001 /* HaishinKit in Frameworks */,
+				EDFF00032F10000000000002 /* RTMPHaishinKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,6 +144,7 @@
 				EDEF71EC2F09AD9200B9B793 /* MWDATCore */,
 				EDEF71EE2F09AD9200B9B793 /* MWDATMockDevice */,
 				EDFF00002F10000000000001 /* HaishinKit */,
+				EDFF00042F10000000000002 /* RTMPHaishinKit */,
 			);
 			productName = "meta-glasses-ios-openai";
 			productReference = EDEF71BA2F099F7900B9B793 /* meta-glasses-ios-openai.app */;
@@ -622,7 +625,7 @@
 		};
 		EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/shogo4405/HaishinKit.swift";
+			repositoryURL = "https://github.com/HaishinKit/HaishinKit.swift";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.0.0;
@@ -650,6 +653,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */;
 			productName = HaishinKit;
+		};
+		EDFF00042F10000000000002 /* RTMPHaishinKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */;
+			productName = RTMPHaishinKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
