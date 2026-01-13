@@ -202,7 +202,12 @@ struct GlassesTab: View {
                             onStartRecording: { glassesManager.startRecording() },
                             onStopRecording: { glassesManager.stopRecording() }
                         )
-                        
+
+                        // RTMP Live Streaming Controls
+                        if glassesManager.connectionState == .streaming || RTMPStreamManager.shared.state.isLive {
+                            StreamControlView(glassesManager: glassesManager)
+                        }
+
                         // Audio Recording (Bluetooth only, no DAT required)
                         AudioRecordingSection(
                             audioRecordingState: glassesManager.audioRecordingState,

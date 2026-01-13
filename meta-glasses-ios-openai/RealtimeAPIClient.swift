@@ -141,34 +141,38 @@ final class RealtimeAPIClient: ObservableObject {
     // Base system instructions (without user customizations)
     private var baseInstructions: String {
         var instructions = """
-        You are a helpful voice assistant integrated into Meta smart glasses. 
-        
+        You are a helpful voice assistant integrated into Meta smart glasses.
+
         # Context
         - The user is wearing Meta AI glasses with a built-in camera
         - You hear the user through the glasses microphone
         - The user hears your responses through the glasses speakers
         - This is a hands-free, eyes-up experience - keep responses concise
-        
+
         # Capabilities
         - You have access to the glasses camera via the take_photo tool
         - When the user asks what they're looking at, seeing, or wants visual information about their surroundings, use the take_photo tool
         - The tool will capture a photo and provide you with a description of what the camera sees
         - You can store and manage memories about the user via the manage_memory tool
         - Use manage_memory when the user shares personal info, preferences, or asks you to remember something
+        - You can be a gym coach via the start_gym_coaching tool
+        - When the user says they want help with exercise form, starts a workout, or asks for coaching (e.g. "coach me on bicep curls", "start coaching squats", "help with my form"), use start_gym_coaching
+        - While coaching is active, you'll periodically analyze their form through the camera and provide feedback
+        - Use stop_gym_coaching when the user says they're done with the exercise or wants to stop coaching
         """
-        
+
         // Only include search_internet if Perplexity is configured
         if SettingsManager.shared.isPerplexityConfigured {
             instructions += """
-            
+
             - You can search the internet via the search_internet tool
             - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
             """
         }
-        
+
         instructions += """
-        
-        
+
+
         # Guidelines
         - Keep responses brief and conversational (1-3 sentences when possible) if user is not asking for longer responses.
         - Respond in the same language the user speaks
@@ -958,6 +962,10 @@ final class RealtimeAPIClient: ObservableObject {
             return "🧠 Managing memory..."
         case "search_internet":
             return "🔍 Searching the web..."
+        case "start_gym_coaching":
+            return "🏋️ Starting gym coaching..."
+        case "stop_gym_coaching":
+            return "🏋️ Stopping coaching..."
         default:
             return "🔧 \(name)..."
         }
@@ -983,6 +991,10 @@ final class RealtimeAPIClient: ObservableObject {
             handleManageMemoryTool(callId: callId, arguments: arguments)
         case "search_internet":
             await handleSearchInternetTool(callId: callId, arguments: arguments)
+        case "start_gym_coaching":
+            await handleStartGymCoachingTool(callId: callId, arguments: arguments)
+        case "stop_gym_coaching":
+            await handleStopGymCoachingTool(callId: callId)
         default:
             logger.warning("⚠️ Unknown function: \(name)")
             sendToolResult(callId: callId, result: "Error: Unknown function '\(name)'")
@@ -1072,7 +1084,110 @@ final class RealtimeAPIClient: ObservableObject {
             sendToolResult(callId: callId, result: "Search failed: \(error.localizedDescription)")
         }
     }
-    
+
+    /// Handle the start_gym_coaching tool call
+    private func handleStartGymCoachingTool(callId: String, arguments: String) async {
+        logger.info("🏋️ Starting gym coaching...")
+
+        // Parse exercise name from arguments
+        guard let data = arguments.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exercise = json["exercise"] as? String, !exercise.isEmpty else {
+            logger.error("❌ Invalid exercise argument")
+            updatePendingToolMessage(text: "🏋️ Coaching error")
+            sendToolResult(callId: callId, result: "Error: Please specify an exercise name")
+            return
+        }
+
+        // Check if glasses are connected
+        guard let glassesManager = glassesManager else {
+            logger.error("❌ Glasses manager not available")
+            updatePendingToolMessage(text: "🏋️ Glasses not connected")
+            sendToolResult(callId: callId, result: "Error: Glasses not connected. Please connect your Meta glasses first.")
+            return
+        }
+
+        // Start coaching with frame provider from glasses
+        GymCoachManager.shared.startCoaching(
+            exercise: exercise,
+            frameProvider: { [weak glassesManager] in
+                guard let frame = glassesManager?.currentFrame else { return nil }
+                return frame.makeUIImage()
+            },
+            speechCallback: { [weak self] text in
+                // Queue speech to be spoken through the voice agent
+                self?.queueCoachingFeedback(text)
+            }
+        )
+
+        updatePendingToolMessage(text: "🏋️ Coaching started")
+
+        // Get exercise info for response
+        let exerciseInfo: String
+        if let exercise = GymCoachManager.shared.getExercise(named: exercise) {
+            exerciseInfo = "Key form cues: \(exercise.formCues.prefix(2).joined(separator: "; "))"
+        } else {
+            exerciseInfo = "I'll watch your form and provide feedback."
+        }
+
+        sendToolResult(callId: callId, result: "Gym coaching started for \(exercise). \(exerciseInfo) I'll analyze your form every \(Int(GymCoachManager.shared.frameInterval)) seconds and provide feedback through the glasses.")
+    }
+
+    /// Handle the stop_gym_coaching tool call
+    private func handleStopGymCoachingTool(callId: String) async {
+        logger.info("🏋️ Stopping gym coaching...")
+
+        guard GymCoachManager.shared.state.isActive else {
+            updatePendingToolMessage(text: "🏋️ No active session")
+            sendToolResult(callId: callId, result: "No active coaching session to stop.")
+            return
+        }
+
+        let feedbackCount = GymCoachManager.shared.sessionFeedbackHistory.count
+        let repCount = GymCoachManager.shared.repCount
+
+        GymCoachManager.shared.stopCoaching()
+
+        updatePendingToolMessage(text: "🏋️ Coaching stopped")
+        sendToolResult(callId: callId, result: "Gym coaching session ended. Provided \(feedbackCount) form checks during the session. Reps counted: \(repCount).")
+    }
+
+    /// Queue coaching feedback to be spoken (integrates with existing audio playback)
+    private func queueCoachingFeedback(_ text: String) {
+        // Add feedback as an assistant message that will be spoken
+        // This uses the existing TTS system via the Realtime API
+        logger.info("🏋️ Queuing coaching feedback: \(text.prefix(50))...")
+
+        // Create a response with the coaching feedback
+        // The Realtime API will convert this to speech
+        let feedbackEvent: [String: Any] = [
+            "type": "conversation.item.create",
+            "item": [
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": text
+                    ]
+                ]
+            ] as [String: Any]
+        ]
+
+        send(event: feedbackEvent)
+
+        // Request audio generation for the feedback
+        let responseEvent: [String: Any] = [
+            "type": "response.create",
+            "response": [
+                "modalities": ["audio"],
+                "instructions": "Speak this coaching feedback naturally and encouragingly: \(text)"
+            ] as [String: Any]
+        ]
+
+        send(event: responseEvent)
+    }
+
     /// Handle the take_photo tool call
     private func handleTakePhotoTool(callId: String) async {
         logger.info("📸 Taking photo for assistant...")
@@ -1224,9 +1339,36 @@ final class RealtimeAPIClient: ObservableObject {
             ] as [String: Any]
         ]
         
+        let startGymCoachingTool: [String: Any] = [
+            "type": "function",
+            "name": "start_gym_coaching",
+            "description": "Start AI gym coaching for an exercise. The AI will analyze the user's form through the glasses camera every few seconds and provide spoken feedback. Use when user asks for exercise coaching, form help, or starts a workout. Examples: 'Coach me on squats', 'Help with my bicep curl form', 'Start coaching deadlifts'.",
+            "parameters": [
+                "type": "object",
+                "properties": [
+                    "exercise": [
+                        "type": "string",
+                        "description": "Name of the exercise to coach (e.g. 'bicep curl', 'squat', 'bench press', 'deadlift', 'plank')"
+                    ] as [String: Any]
+                ] as [String: Any],
+                "required": ["exercise"]
+            ] as [String: Any]
+        ]
+
+        let stopGymCoachingTool: [String: Any] = [
+            "type": "function",
+            "name": "stop_gym_coaching",
+            "description": "Stop the current gym coaching session. Use when user says they're done with the exercise, finished, or wants to stop coaching.",
+            "parameters": [
+                "type": "object",
+                "properties": [:] as [String: Any],
+                "required": [] as [String]
+            ] as [String: Any]
+        ]
+
         // Build tools array - search_internet is only available if Perplexity is configured
-        var tools: [[String: Any]] = [takePhotoTool, manageMemoryTool]
-        
+        var tools: [[String: Any]] = [takePhotoTool, manageMemoryTool, startGymCoachingTool, stopGymCoachingTool]
+
         if SettingsManager.shared.isPerplexityConfigured {
             let searchInternetTool: [String: Any] = [
                 "type": "function",

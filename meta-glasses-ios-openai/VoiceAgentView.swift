@@ -332,7 +332,12 @@ private struct ConnectedView: View {
                             voiceState: client.voiceState,
                             isMuted: client.isMuted
                         )
-                        
+
+                        // Gym coaching status (when active)
+                        if GymCoachManager.shared.state.isActive {
+                            CoachingStatusBar()
+                        }
+
                         // Transcript area
                         TranscriptCard(
                             messages: client.messages,
@@ -506,6 +511,70 @@ private struct SessionStatusBar: View {
         case .processing: return .orange
         case .speaking: return .purple
         }
+    }
+}
+
+// MARK: - Coaching Status Bar
+
+private struct CoachingStatusBar: View {
+    @ObservedObject private var coachManager = GymCoachManager.shared
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Coaching indicator
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 8, height: 8)
+                    .overlay(
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 8, height: 8)
+                            .opacity(coachManager.state == .analyzing ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: coachManager.state == .analyzing)
+                    )
+
+                Text(coachManager.state.displayText)
+                    .font(.caption.bold())
+                    .foregroundColor(.orange)
+            }
+
+            Spacer()
+
+            // Rep count if available
+            if coachManager.repCount > 0 {
+                HStack(spacing: 4) {
+                    Text("\(coachManager.repCount)")
+                        .font(.caption.bold())
+                    Text("reps")
+                        .font(.caption)
+                }
+                .foregroundColor(.secondary)
+            }
+
+            // Analysis interval indicator
+            HStack(spacing: 4) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.caption)
+                Text("Every \(Int(coachManager.frameInterval))s")
+                    .font(.caption)
+            }
+            .foregroundColor(.secondary)
+
+            // Stop button
+            Button {
+                coachManager.stopCoaching()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.body)
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.orange.opacity(0.1))
+        .cornerRadius(10)
     }
 }
 
