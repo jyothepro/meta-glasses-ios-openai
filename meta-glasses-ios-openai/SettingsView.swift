@@ -118,6 +118,12 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    NavigationLink {
+                        PushNotificationTestView()
+                    } label: {
+                        Label("Push Notifications", systemImage: "bell.badge")
+                    }
                 } header: {
                     Text("Hardware")
                 }
@@ -1102,6 +1108,169 @@ private struct PermissionDetailView: View {
             showPhotoLibraryExplanation = true
         case .bluetooth:
             permissionsManager.requestBluetooth()
+        }
+    }
+}
+
+// MARK: - Push Notification Test View
+
+private struct PushNotificationTestView: View {
+    @StateObject private var notificationManager = NotificationManager.shared
+
+    var body: some View {
+        Form {
+            // Status Section
+            Section {
+                HStack {
+                    Text("Audio Output")
+                    Spacer()
+                    Text(notificationManager.getAudioOutputDescription())
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Routed to Glasses")
+                    Spacer()
+                    Image(systemName: notificationManager.audioRoutedToGlasses ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(notificationManager.audioRoutedToGlasses ? .green : .orange)
+                }
+
+                if notificationManager.isSpeaking {
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Speaking...")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Audio Route")
+            } footer: {
+                if !notificationManager.audioRoutedToGlasses {
+                    Text("Connect your Meta glasses via Bluetooth to hear notifications through them. Otherwise, audio will play through your device speaker.")
+                }
+            }
+
+            // Test Buttons Section
+            Section {
+                Button {
+                    notificationManager.sendTestNotification()
+                } label: {
+                    HStack {
+                        Label("Send Test Notification", systemImage: "bell")
+                        Spacer()
+                        if notificationManager.isSpeaking {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+                .disabled(notificationManager.isSpeaking)
+
+                Button {
+                    notificationManager.sendImportantNotification()
+                } label: {
+                    HStack {
+                        Label("Simulate Job Offer Alert", systemImage: "briefcase.fill")
+                        Spacer()
+                        if notificationManager.isSpeaking {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+                .disabled(notificationManager.isSpeaking)
+
+                if notificationManager.isSpeaking {
+                    Button(role: .destructive) {
+                        notificationManager.stopSpeaking()
+                    } label: {
+                        Label("Stop Speaking", systemImage: "stop.fill")
+                    }
+                }
+            } header: {
+                Text("Test Push Notifications")
+            } footer: {
+                Text("These buttons simulate notifications being pushed to your glasses. The audio will play through your glasses speakers if connected via Bluetooth.")
+            }
+
+            // Custom Message Section
+            Section {
+                CustomNotificationView()
+            } header: {
+                Text("Custom Message")
+            }
+
+            // Last Notification
+            if !notificationManager.lastNotification.isEmpty {
+                Section {
+                    Text(notificationManager.lastNotification)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("Last Notification")
+                }
+            }
+
+            // Info Section
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label {
+                        Text("This is a proof-of-concept for pushing notifications to your glasses via Bluetooth audio.")
+                            .font(.subheadline)
+                    } icon: {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                    }
+
+                    Text("Future integration with Clawdbot would enable:\n• Important email alerts\n• Message notifications from any platform\n• Priority filtering (job offers, emergencies)\n• Cross-platform AI assistant access")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("About")
+            }
+        }
+        .navigationTitle("Push Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            notificationManager.checkAudioRoute()
+        }
+    }
+}
+
+// MARK: - Custom Notification View
+
+private struct CustomNotificationView: View {
+    @StateObject private var notificationManager = NotificationManager.shared
+    @State private var customMessage: String = ""
+    @FocusState private var isMessageFieldFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            TextField("Type a message to push to glasses...", text: $customMessage, axis: .vertical)
+                .lineLimit(2...4)
+                .focused($isMessageFieldFocused)
+
+            Button {
+                if !customMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    notificationManager.pushNotification(customMessage)
+                    customMessage = ""
+                    isMessageFieldFocused = false
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "paperplane.fill")
+                    Text("Push to Glasses")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(customMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || notificationManager.isSpeaking)
         }
     }
 }
