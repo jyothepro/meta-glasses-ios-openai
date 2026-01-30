@@ -97,3 +97,58 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 - Meta Ray-Ban smart glasses paired with device
 - Meta App ID from https://developer.meta.com
 - OpenAI API key with Realtime API access (can be configured in-app: Settings → AI → Models)
+
+---
+
+## Compound Engineering
+
+This project uses a nightly automation loop to compound learnings and implement priorities.
+
+### How It Works
+
+1. **10:30 PM - Compound Review**: Reviews all work from the last 24 hours, extracts learnings, updates this file
+2. **11:00 PM - Auto-Compound**: Picks #1 priority from `reports/`, implements it, creates a PR
+
+### For AI Agents
+
+When completing any task, follow these practices:
+
+#### Before Starting
+- Read this entire file to understand patterns and gotchas
+- Check `reports/` for current priorities
+- Review recent git history for context
+
+#### During Implementation
+- Follow existing code patterns (see Architecture section above)
+- Use `@MainActor` for all managers and UI-related code
+- Prefer editing existing files over creating new ones
+- Write tests for new functionality when appropriate
+
+#### After Completing
+- **Compound your learnings**: Update this file with:
+  - New patterns discovered
+  - Gotchas or pitfalls encountered
+  - Architectural decisions and rationale
+- Commit with clear, descriptive messages
+- If running via automation, the nightly job handles commits/PRs
+
+### Learnings Log
+
+<!-- Learnings are automatically added here by the nightly compound review -->
+
+#### Patterns
+- Use `async/await` with proper error handling for all API calls
+- WebSocket connections need manual reconnection logic
+- Always check for `@MainActor` when accessing UI state
+
+#### Gotchas
+- Bluetooth operations must run on physical device (simulator fails silently)
+- Meta SDK requires app to be in foreground for camera access
+- OpenAI Realtime API has strict audio format requirements (PCM16, 24kHz, mono)
+
+#### Performance
+- Lazy initialization for heavy views (LazyView pattern)
+- Debounce settings updates to reduce API calls
+- Retain listener tokens to prevent premature deallocation
+
+---

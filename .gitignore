@@ -48,3 +48,10 @@ ai-glasses/Config.swift
 # New secrets
 meta-glasses-ios-openai/Config.swift
 Config.xcconfig
+
+# Agent automation
+.env.local
+logs/
+scripts/compound/prd.json
+tasks/*.md
+!tasks/.gitkeep

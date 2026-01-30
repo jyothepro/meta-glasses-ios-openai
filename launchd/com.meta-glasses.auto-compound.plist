@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meta-glasses.auto-compound</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- UPDATE THIS PATH to your project location -->
+        <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/scripts/compound/auto-compound.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai</string>
+
+    <!-- Run at 11:00 PM daily (after compound review) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>23</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/logs/auto-compound.log</string>
+
+    <key>StandardErrorPath</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/logs/auto-compound.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <!-- Add your API keys here or source from .env.local -->
+        <!-- <key>ANTHROPIC_API_KEY</key> -->
+        <!-- <string>your-api-key</string> -->
+    </dict>
+
+    <!-- Longer timeout for implementation work -->
+    <key>TimeOut</key>
+    <integer>7200</integer>
+
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+</dict>
+</plist>

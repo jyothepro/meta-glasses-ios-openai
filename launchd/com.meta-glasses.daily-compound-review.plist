@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meta-glasses.daily-compound-review</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- UPDATE THIS PATH to your project location -->
+        <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/scripts/daily-compound-review.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai</string>
+
+    <!-- Run at 10:30 PM daily -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/logs/compound-review.log</string>
+
+    <key>StandardErrorPath</key>
+    <!-- UPDATE THIS PATH to your project location -->
+    <string>/Users/YOUR_USERNAME/projects/meta-glasses-ios-openai/logs/compound-review.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <!-- Add your API keys here or source from .env.local -->
+        <!-- <key>ANTHROPIC_API_KEY</key> -->
+        <!-- <string>your-api-key</string> -->
+    </dict>
+
+    <!-- Retry on failure -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+</dict>
+</plist>
