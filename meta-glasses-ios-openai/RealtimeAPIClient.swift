@@ -350,6 +350,9 @@ final class RealtimeAPIClient: ObservableObject {
         
         connectionState = .connecting
         logger.info("Connecting to Realtime API...")
+
+        // Prevent screen from sleeping during active voice session
+        UIApplication.shared.isIdleTimerDisabled = true
         
         // Handle thread: resume existing or create new
         if let threadId = threadId,
@@ -416,6 +419,10 @@ final class RealtimeAPIClient: ObservableObject {
     
     func disconnect() {
         logger.info("Disconnecting from Realtime API")
+
+        // Re-enable screen sleep now that voice session is over
+        UIApplication.shared.isIdleTimerDisabled = false
+
 
         // Play disconnect sound
         SoundManager.shared.playDisconnectSound()
