@@ -515,6 +515,42 @@ final class RealtimeAPIClient: ObservableObject {
         voiceState = .processing
     }
     
+    /// Send a text message to the conversation
+    func sendTextMessage(_ text: String) {
+        guard connectionState == .connected, isSessionConfigured else {
+            logger.warning("Cannot send text: not connected or not configured")
+            return
+        }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        logger.info("💬 Sending text message: \(trimmed.prefix(50))...")
+
+        // Add to local messages for UI
+        messages.append(ChatMessage(isUser: true, text: trimmed))
+
+        // Send as conversation item
+        let event: [String: Any] = [
+            "type": "conversation.item.create",
+            "item": [
+                "type": "message",
+                "role": "user",
+                "content": [
+                    [
+                        "type": "input_text",
+                        "text": trimmed
+                    ]
+                ]
+            ] as [String: Any]
+        ]
+        send(event: event)
+
+        // Request a response
+        voiceState = .processing
+        requestResponse()
+    }
+
     /// Toggle microphone mute state
     /// Simple behavior: just stop/resume sending audio, no side effects
     func toggleMute() {
