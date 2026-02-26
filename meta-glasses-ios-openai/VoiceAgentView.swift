@@ -112,6 +112,7 @@ struct VoiceAgentView: View {
                                 // Connected state: show conversation UI
                                 ConnectedView(
                                     client: client,
+                                    glassesManager: glassesManager,
                                     onDisconnect: {
                                         logger.info("🔌 Disconnect button tapped")
                                         client.disconnect()
@@ -348,6 +349,7 @@ private struct WelcomeView: View {
 
 private struct ConnectedView: View {
     @ObservedObject var client: RealtimeAPIClient
+    @ObservedObject var glassesManager: GlassesManager
     let onDisconnect: () -> Void
     let onToggleMute: () -> Void
     let onForceResponse: () -> Void
@@ -373,7 +375,8 @@ private struct ConnectedView: View {
                         SessionStatusBar(
                             isSessionConfigured: client.isSessionConfigured,
                             voiceState: client.voiceState,
-                            isMuted: client.isMuted
+                            isMuted: client.isMuted,
+                            isGlassesStreaming: glassesManager.connectionState == .streaming
                         )
 
                         // Gym coaching status (when active)
@@ -492,7 +495,8 @@ private struct SessionStatusBar: View {
     let isSessionConfigured: Bool
     let voiceState: VoiceState
     let isMuted: Bool
-    
+    let isGlassesStreaming: Bool
+
     var body: some View {
         HStack(spacing: 12) {
             // Session status
@@ -500,12 +504,26 @@ private struct SessionStatusBar: View {
                 Circle()
                     .fill(isSessionConfigured ? Color.green : Color.orange)
                     .frame(width: 8, height: 8)
-                
+
                 Text(isSessionConfigured ? "Connected" : "Configuring...")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
+            // Glasses streaming indicator
+            HStack(spacing: 4) {
+                Image(systemName: "eyeglasses")
+                    .font(.caption)
+                Circle()
+                    .fill(isGlassesStreaming ? Color.green : Color.red)
+                    .frame(width: 6, height: 6)
+            }
+            .foregroundColor(isGlassesStreaming ? .green : .red)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background((isGlassesStreaming ? Color.green : Color.red).opacity(0.15))
+            .cornerRadius(8)
+
             Spacer()
             
             // Muted indicator

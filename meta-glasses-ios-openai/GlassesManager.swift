@@ -264,7 +264,7 @@ final class GlassesManager: ObservableObject {
             
             Log.glasses.info("📝 Starting registration with Meta AI app...")
             do {
-                try wearables.startRegistration()
+                try await wearables.startRegistration()
                 Log.glasses.info("✅ Registration started - check Meta AI app")
             } catch {
                 Log.glasses.warning("⚠️ Registration request failed: \(error.localizedDescription)")
@@ -274,11 +274,13 @@ final class GlassesManager: ObservableObject {
     
     func unregister() {
         Log.glasses.info("📝 Starting unregistration...")
-        do {
-            try wearables.startUnregistration()
-            Log.glasses.info("✅ Unregistration started")
-        } catch {
-            Log.glasses.error("❌ Unregistration failed: \(error.localizedDescription)")
+        Task {
+            do {
+                try await wearables.startUnregistration()
+                Log.glasses.info("✅ Unregistration started")
+            } catch {
+                Log.glasses.error("❌ Unregistration failed: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -597,13 +599,170 @@ final class GlassesManager: ObservableObject {
         }
     }
     
+    // MARK: - Auto-Connect for AI Tool Calls
+
+    /// Automatically connect to glasses if needed - for AI tool calls
+    /// Returns when glasses are ready for capture, or throws error
+    func ensureReadyForCapture() async throws {
+        Log.glasses.info("🤖 ensureReadyForCapture: Checking glasses status...")
+
+        // Check if registered
+        if !isRegistered {
+            Log.glasses.error("❌ Not registered with Meta AI app")
+            throw NSError(
+                domain: "GlassesManager",
+                code: 100,
+                userInfo: [NSLocalizedDescriptionKey: "Please register with Meta AI app first (Settings → Glasses → Register)"]
+            )
+        }
+
+        // Check if no devices available
+        if availableDevices.isEmpty {
+            Log.glasses.error("❌ No glasses found")
+            throw NSError(
+                domain: "GlassesManager",
+                code: 101,
+                userInfo: [NSLocalizedDescriptionKey: "No glasses found. Make sure your Meta glasses are powered on and paired."]
+            )
+        }
+
+        // Check if already connected
+        if deviceSelector != nil {
+            Log.glasses.info("✅ Already connected to glasses")
+            return
+        }
+
+        // Auto-connect: start searching and wait for connection
+        Log.glasses.info("🔍 Auto-connecting to glasses...")
+        connectionState = .searching
+        deviceSelector = AutoDeviceSelector(wearables: wearables)
+
+        // Wait for device to be found with timeout
+        let timeoutSeconds = 10
+        var elapsed = 0
+
+        while elapsed < timeoutSeconds {
+            // Check if we have an active device
+            if let selector = deviceSelector {
+                // Poll the stream for active device
+                for await device in selector.activeDeviceStream() {
+                    if device != nil {
+                        Log.glasses.info("✅ Auto-connected to glasses")
+                        connectionState = .connected
+                        return
+                    }
+                    break // Only check once per iteration
+                }
+            }
+
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
+            elapsed += 1
+
+            // Check if connection state changed
+            if connectionState.isConnected {
+                Log.glasses.info("✅ Glasses connected")
+                return
+            }
+        }
+
+        // Timeout - cleanup and throw
+        deviceSelector = nil
+        connectionState = .disconnected
+        Log.glasses.error("❌ Connection timeout")
+        throw NSError(
+            domain: "GlassesManager",
+            code: 102,
+            userInfo: [NSLocalizedDescriptionKey: "Could not connect to glasses. Make sure they are nearby and powered on."]
+        )
+    }
+
+    /// Ensure streaming is active - for AI tool calls that need live video
+    func ensureStreaming() async throws {
+        // First ensure we're connected
+        try await ensureReadyForCapture()
+
+        // Check if already streaming
+        if connectionState == .streaming {
+            Log.glasses.info("✅ Already streaming")
+            return
+        }
+
+        // Start streaming
+        Log.glasses.info("🎬 Auto-starting stream...")
+        startStreaming()
+
+        // Wait for streaming state with timeout
+        let timeoutSeconds = 10
+        var elapsed = 0
+
+        while elapsed < timeoutSeconds {
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
+            elapsed += 1
+
+            if connectionState == .streaming {
+                Log.glasses.info("✅ Stream started")
+                return
+            }
+
+            if case .error(let msg) = connectionState {
+                throw NSError(
+                    domain: "GlassesManager",
+                    code: 103,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to start stream: \(msg)"]
+                )
+            }
+        }
+
+        Log.glasses.error("❌ Stream timeout")
+        throw NSError(
+            domain: "GlassesManager",
+            code: 104,
+            userInfo: [NSLocalizedDescriptionKey: "Could not start video stream. Please try again."]
+        )
+    }
+
+    // Auto-stop timer for battery saving
+    private var autoStopStreamTask: Task<Void, Never>?
+    private let autoStopDelaySeconds: UInt64 = 60 // Stop stream after 60s of no use
+
+    /// Reset the auto-stop timer (call when stream is being used)
+    func resetAutoStopTimer() {
+        autoStopStreamTask?.cancel()
+
+        autoStopStreamTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: autoStopDelaySeconds * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    if self.connectionState == .streaming && self.recordingState == .idle {
+                        Log.glasses.info("⏱️ Auto-stopping stream after \(self.autoStopDelaySeconds)s of inactivity")
+                        self.stopStreaming()
+                    }
+                }
+            } catch {
+                // Cancelled, ignore
+            }
+        }
+    }
+
+    /// Cancel auto-stop timer (e.g., when user manually controls stream)
+    func cancelAutoStopTimer() {
+        autoStopStreamTask?.cancel()
+        autoStopStreamTask = nil
+    }
+
     // MARK: - Async Photo Capture (unified method)
-    
+
     /// Capture photo, save to Photo Library and Captured Media, return photo data
     /// This is the unified method for both UI and tool calling
+    /// Now with auto-connect support!
     func capturePhotoAsync() async throws -> Data {
         Log.glasses.info("📸 capturePhotoAsync: Starting...")
-        
+
+        // Auto-connect if needed
+        try await ensureReadyForCapture()
+
         guard let selector = deviceSelector else {
             Log.glasses.error("❌ No device selector for photo capture")
             throw NSError(

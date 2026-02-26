@@ -239,7 +239,7 @@ final class ThreadsManager: ObservableObject {
             "messages": [
                 ["role": "user", "content": prompt]
             ],
-            "max_tokens": 30,
+            "max_completion_tokens": 30,
             "temperature": 0.3
         ]
         

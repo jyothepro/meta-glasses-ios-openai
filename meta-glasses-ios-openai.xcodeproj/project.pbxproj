@@ -10,7 +10,8 @@
 		EDEF71EB2F09AD9200B9B793 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDEF71EA2F09AD9200B9B793 /* MWDATCamera */; };
 		EDEF71ED2F09AD9200B9B793 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDEF71EC2F09AD9200B9B793 /* MWDATCore */; };
 		EDEF71EF2F09AD9200B9B793 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDEF71EE2F09AD9200B9B793 /* MWDATMockDevice */; };
-		EDFF00012F10000000000001 /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = EDFF00002F10000000000001 /* HaishinKit */; };
+		EDHS00012F11000000000001 /* HaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = EDHS00002F11000000000001 /* HaishinKit */; };
+		EDHS00032F11000000000001 /* RTMPHaishinKit in Frameworks */ = {isa = PBXBuildFile; productRef = EDHS00022F11000000000001 /* RTMPHaishinKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,7 +77,8 @@
 				EDEF71EB2F09AD9200B9B793 /* MWDATCamera in Frameworks */,
 				EDEF71EF2F09AD9200B9B793 /* MWDATMockDevice in Frameworks */,
 				EDEF71ED2F09AD9200B9B793 /* MWDATCore in Frameworks */,
-				EDFF00012F10000000000001 /* HaishinKit in Frameworks */,
+				EDHS00012F11000000000001 /* HaishinKit in Frameworks */,
+				EDHS00032F11000000000001 /* RTMPHaishinKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -141,7 +143,8 @@
 				EDEF71EA2F09AD9200B9B793 /* MWDATCamera */,
 				EDEF71EC2F09AD9200B9B793 /* MWDATCore */,
 				EDEF71EE2F09AD9200B9B793 /* MWDATMockDevice */,
-				EDFF00002F10000000000001 /* HaishinKit */,
+				EDHS00002F11000000000001 /* HaishinKit */,
+				EDHS00022F11000000000001 /* RTMPHaishinKit */,
 			);
 			productName = "meta-glasses-ios-openai";
 			productReference = EDEF71BA2F099F7900B9B793 /* meta-glasses-ios-openai.app */;
@@ -227,7 +230,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				EDEF71E92F09AD9100B9B793 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
-				EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */,
+				EDHS00042F11000000000001 /* XCRemoteSwiftPackageReference "HaishinKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EDEF71BB2F099F7900B9B793 /* Products */;
@@ -640,7 +643,7 @@
 				minimumVersion = 0.3.0;
 			};
 		};
-		EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */ = {
+		EDHS00042F11000000000001 /* XCRemoteSwiftPackageReference "HaishinKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/shogo4405/HaishinKit.swift";
 			requirement = {
@@ -666,10 +669,15 @@
 			package = EDEF71E92F09AD9100B9B793 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
 			productName = MWDATMockDevice;
 		};
-		EDFF00002F10000000000001 /* HaishinKit */ = {
+		EDHS00002F11000000000001 /* HaishinKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EDFF00022F10000000000001 /* XCRemoteSwiftPackageReference "HaishinKit.swift" */;
+			package = EDHS00042F11000000000001 /* XCRemoteSwiftPackageReference "HaishinKit" */;
 			productName = HaishinKit;
+		};
+		EDHS00022F11000000000001 /* RTMPHaishinKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDHS00042F11000000000001 /* XCRemoteSwiftPackageReference "HaishinKit" */;
+			productName = RTMPHaishinKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

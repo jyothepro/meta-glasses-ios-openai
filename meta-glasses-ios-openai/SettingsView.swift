@@ -210,6 +210,33 @@ struct SettingsView: View {
                     Text("Threads")
                 }
                 
+                // Developer Section
+                Section {
+                    NavigationLink {
+                        APIDebugView()
+                    } label: {
+                        HStack {
+                            Label("API Debug Log", systemImage: "ant")
+                            Spacer()
+                            if APIDebugLogger.shared.errorEntries().count > 0 {
+                                Text("\(APIDebugLogger.shared.errorEntries().count)")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            } else if APIDebugLogger.shared.entries.count > 0 {
+                                Text("\(APIDebugLogger.shared.entries.count)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Developer")
+                }
+
                 // App Info
                 Section {
                     HStack {
@@ -735,7 +762,7 @@ private struct AIToolRow: View {
 
 private struct ModelsListView: View {
     @ObservedObject private var settingsManager = SettingsManager.shared
-    
+
     var body: some View {
         List {
             Section {
@@ -751,8 +778,26 @@ private struct ModelsListView: View {
                         }
                     }
                 }
+
+                NavigationLink {
+                    GeminiModelView()
+                } label: {
+                    HStack {
+                        Label("Google Gemini", systemImage: "video")
+                        Spacer()
+                        if settingsManager.isGeminiConfigured {
+                            Text("Gym Coach")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Optional")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             } footer: {
-                Text("Configure API keys for AI models used by the voice assistant.")
+                Text("Configure API keys for AI models. OpenAI is required for voice. Gemini enables real-time gym coaching.")
             }
         }
         .navigationTitle("Models")
@@ -825,6 +870,96 @@ private struct OpenAIModelView: View {
         }
         .onAppear {
             apiKey = settingsManager.openAIAPIKey
+        }
+    }
+}
+
+// MARK: - Gemini Model View
+
+private struct GeminiModelView: View {
+    @ObservedObject private var settingsManager = SettingsManager.shared
+    @State private var apiKey: String = ""
+    @FocusState private var isKeyFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            Section {
+                SecureField("API Key", text: $apiKey)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                    .focused($isKeyFieldFocused)
+            } header: {
+                Text("API Key")
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    if apiKey.isEmpty {
+                        Text("Optional. Enables real-time gym coaching with video analysis.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Gemini Live enabled for gym coaching")
+                                .foregroundColor(.green)
+                        }
+                    }
+                    Text("Get your API key at aistudio.google.com/apikey")
+                }
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This API key is used for:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Real-time gym coaching (Gemini Live API)", systemImage: "figure.strengthtraining.traditional")
+                        Label("Continuous video streaming analysis", systemImage: "video")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Usage")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.yellow)
+                        Text("Why Gemini for Gym Coaching?")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+
+                    Text("Gemini Live API supports real-time video streaming, providing instant feedback on your exercise form. Without Gemini, gym coaching falls back to OpenAI with periodic snapshots every 5 seconds.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Benefits")
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture {
+            isKeyFieldFocused = false
+        }
+        .navigationTitle("Google Gemini")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    settingsManager.geminiAPIKey = apiKey
+                    settingsManager.saveNow()
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            apiKey = settingsManager.geminiAPIKey
         }
     }
 }

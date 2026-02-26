@@ -98,7 +98,7 @@ final class GymCoachManager: ObservableObject {
     @Published private(set) var currentFeedback: CoachingFeedback?
     @Published private(set) var sessionFeedbackHistory: [CoachingFeedback] = []
     @Published private(set) var repCount: Int = 0
-    @Published var frameInterval: TimeInterval = 5.0 // Seconds between analysis
+    @Published var frameInterval: TimeInterval = 5.0 // Seconds between analysis (5s for testing)
     @Published var speakFeedback: Bool = true
 
     // MARK: - Private Properties
@@ -111,6 +111,10 @@ final class GymCoachManager: ObservableObject {
 
     // TTS
     private let speechSynthesizer = AVSpeechSynthesizer()
+
+    // Gemini Live client for real-time video coaching
+    private var geminiClient: GeminiLiveClient?
+    private var useGeminiLive: Bool = false
 
     // Exercise library
     private(set) var exercises: [Exercise] = []
@@ -146,17 +150,110 @@ final class GymCoachManager: ObservableObject {
         // Normalize exercise name
         let normalizedExercise = normalizeExerciseName(exercise)
 
-        state = .active(exercise: normalizedExercise)
+        // Check if Gemini is available for real-time coaching
+        useGeminiLive = SettingsManager.shared.isGeminiConfigured
 
-        // Give initial instructions
-        let exerciseInfo = getExerciseInfo(normalizedExercise)
-        let greeting = "Starting \(normalizedExercise) coaching. \(exerciseInfo.initialTip) I'll analyze your form every \(Int(frameInterval)) seconds."
-        speak(greeting)
+        if useGeminiLive {
+            // Use Gemini Live for real-time video streaming
+            startGeminiCoaching(exercise: normalizedExercise, frameProvider: frameProvider)
+        } else {
+            // Fall back to OpenAI Vision API with periodic frames
+            state = .active(exercise: normalizedExercise)
 
-        // Start periodic analysis
-        startAnalysisTimer()
+            // Start periodic analysis after a delay to let the AI finish its response
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds delay
+                await MainActor.run {
+                    if self.state.isActive {
+                        self.startAnalysisTimer()
+                        logger.info("🏋️ Analysis timer started after delay")
+                    }
+                }
+            }
+        }
 
-        logger.info("🏋️ Coaching active for: \(normalizedExercise)")
+        logger.info("🏋️ Coaching active for: \(normalizedExercise) (Gemini: \(self.useGeminiLive))")
+    }
+
+    /// Start coaching using Gemini Live API with real-time video streaming
+    private func startGeminiCoaching(exercise: String, frameProvider: @escaping () -> UIImage?) {
+        let exerciseInfo = getExerciseInfo(exercise)
+        let systemInstruction = buildGeminiSystemInstruction(exercise: exercise, info: exerciseInfo)
+
+        geminiClient = GeminiLiveClient()
+
+        // Set up callbacks
+        geminiClient?.onTextReceived = { [weak self] text in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.lastTranscript = text
+                // Create feedback from Gemini response
+                let feedback = self.parseAnalysisResponse(text, exercise: exercise)
+                self.currentFeedback = feedback
+                self.sessionFeedbackHistory.append(feedback)
+            }
+        }
+
+        geminiClient?.onError = { [weak self] error in
+            guard let self = self else { return }
+            Task { @MainActor in
+                logger.error("🏋️ Gemini error: \(error.localizedDescription)")
+                // Fall back to OpenAI on error
+                self.useGeminiLive = false
+                self.geminiClient = nil
+                self.startAnalysisTimer()
+            }
+        }
+
+        // Connect and start streaming
+        Task {
+            do {
+                try await geminiClient?.connect(systemInstruction: systemInstruction)
+                await MainActor.run {
+                    self.state = .active(exercise: exercise)
+                    self.geminiClient?.startVideoStream(frameProvider: frameProvider)
+                    logger.info("🏋️ Gemini Live streaming started")
+                }
+            } catch {
+                await MainActor.run {
+                    logger.error("🏋️ Failed to connect to Gemini: \(error.localizedDescription)")
+                    // Fall back to OpenAI
+                    self.useGeminiLive = false
+                    self.geminiClient = nil
+                    self.state = .active(exercise: exercise)
+                    self.startAnalysisTimer()
+                }
+            }
+        }
+    }
+
+    private var lastTranscript: String = ""
+
+    private func buildGeminiSystemInstruction(exercise: String, info: ExerciseInfo) -> String {
+        return """
+        You are an expert fitness coach watching a user perform \(exercise) through their smart glasses camera in real-time.
+
+        **Your Role:**
+        - Provide real-time, spoken feedback on their exercise form
+        - Be concise - speak naturally in 1-2 sentences at a time
+        - Only speak when you see something worth commenting on
+        - Be encouraging but honest about form corrections
+
+        **Key Form Cues for \(exercise):**
+        \(info.formCues.map { "- \($0)" }.joined(separator: "\n"))
+
+        **Common Mistakes to Watch For:**
+        \(info.commonMistakes.map { "- \($0)" }.joined(separator: "\n"))
+
+        **Response Guidelines:**
+        - Speak naturally as if you're standing next to them
+        - Be specific about what you SEE, not generic advice
+        - Count reps if you can see them completing movements
+        - Give encouragement when form is good
+        - If you can't see the relevant body parts, let them know
+
+        Start by greeting them and confirming you can see them.
+        """
     }
 
     /// Stop the current coaching session
@@ -164,6 +261,14 @@ final class GymCoachManager: ObservableObject {
         guard state.isActive else { return }
 
         logger.info("🏋️ Stopping coaching session")
+
+        // Stop Gemini if active
+        if useGeminiLive {
+            geminiClient?.stopVideoStream()
+            geminiClient?.disconnect()
+            geminiClient = nil
+            useGeminiLive = false
+        }
 
         analysisTimer?.invalidate()
         analysisTimer = nil
@@ -212,16 +317,26 @@ final class GymCoachManager: ObservableObject {
     }
 
     private func analyzeCurrentFrame() {
-        guard case .active(let exercise) = state else { return }
-        guard let frameProvider = frameProvider,
-              let frame = frameProvider() else {
-            logger.warning("🏋️ No frame available for analysis")
+        guard case .active(let exercise) = state else {
+            logger.debug("🏋️ Skipping analysis - state is not active")
+            return
+        }
+        guard let frameProvider = frameProvider else {
+            logger.warning("🏋️ No frame provider configured")
+            return
+        }
+        guard let frame = frameProvider() else {
+            logger.warning("🏋️ Frame provider returned nil - no frame available from glasses")
             return
         }
 
         // Prevent overlapping analyses
-        guard state != .analyzing else { return }
+        guard state != .analyzing else {
+            logger.debug("🏋️ Skipping analysis - already analyzing")
+            return
+        }
 
+        logger.info("🏋️ Starting frame analysis for \(exercise) (frame size: \(Int(frame.size.width))x\(Int(frame.size.height)))")
         let previousState = state
         state = .analyzing
         lastFrameAnalysisTime = Date()
@@ -233,6 +348,8 @@ final class GymCoachManager: ObservableObject {
                     self.currentFeedback = feedback
                     self.sessionFeedbackHistory.append(feedback)
                     self.state = previousState
+
+                    logger.info("🏋️ Analysis complete: \(feedback.analysis.prefix(100))...")
 
                     // Speak feedback if enabled
                     if self.speakFeedback {
@@ -253,6 +370,14 @@ final class GymCoachManager: ObservableObject {
         let apiKey = await MainActor.run { SettingsManager.shared.openAIAPIKey }
         guard !apiKey.isEmpty else {
             throw CoachingError.noAPIKey
+        }
+
+        // DEBUG: Save frame to documents to verify what's being analyzed
+        if let imageData = image.jpegData(compressionQuality: 0.9) {
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let debugImagePath = documentsPath.appendingPathComponent("gym_coach_debug_frame.jpg")
+            try? imageData.write(to: debugImagePath)
+            logger.info("🏋️ DEBUG: Saved analysis frame to \(debugImagePath.path)")
         }
 
         // Get exercise-specific prompt
@@ -310,6 +435,7 @@ final class GymCoachManager: ObservableObject {
     }
 
     private func callVisionAPI(apiKey: String, prompt: String, imageBase64: String) async throws -> String {
+        let startTime = Date()
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -337,33 +463,84 @@ final class GymCoachManager: ObservableObject {
                     ]
                 ]
             ],
-            "max_tokens": 150
+            "max_completion_tokens": 150
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Decode image data for logging
+        let imageData = Data(base64Encoded: imageBase64) ?? Data()
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CoachingError.networkError
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+
+            guard let httpResponse = httpResponse else {
+                await APIDebugLogger.shared.logVisionCall(
+                    prompt: prompt,
+                    imageData: imageData,
+                    response: nil,
+                    statusCode: nil,
+                    durationMs: durationMs,
+                    error: "Network error"
+                )
+                throw CoachingError.networkError
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+                logger.error("🏋️ Vision API error: \(httpResponse.statusCode) - \(errorBody)")
+                await APIDebugLogger.shared.logVisionCall(
+                    prompt: prompt,
+                    imageData: imageData,
+                    response: errorBody,
+                    statusCode: httpResponse.statusCode,
+                    durationMs: durationMs,
+                    error: "API error (\(httpResponse.statusCode))"
+                )
+                throw CoachingError.apiError(httpResponse.statusCode)
+            }
+
+            // Parse response
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
+                await APIDebugLogger.shared.logVisionCall(
+                    prompt: prompt,
+                    imageData: imageData,
+                    response: String(data: data, encoding: .utf8),
+                    statusCode: httpResponse.statusCode,
+                    durationMs: durationMs,
+                    error: "Parse error"
+                )
+                throw CoachingError.parseError
+            }
+
+            // Log successful call
+            await APIDebugLogger.shared.logVisionCall(
+                prompt: prompt,
+                imageData: imageData,
+                response: content,
+                statusCode: httpResponse.statusCode,
+                durationMs: durationMs
+            )
+
+            return content
+        } catch {
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+            await APIDebugLogger.shared.logVisionCall(
+                prompt: prompt,
+                imageData: imageData,
+                response: nil,
+                statusCode: nil,
+                durationMs: durationMs,
+                error: error.localizedDescription
+            )
+            throw error
         }
-
-        guard httpResponse.statusCode == 200 else {
-            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("🏋️ Vision API error: \(httpResponse.statusCode) - \(errorBody)")
-            throw CoachingError.apiError(httpResponse.statusCode)
-        }
-
-        // Parse response
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw CoachingError.parseError
-        }
-
-        return content
     }
 
     private func parseAnalysisResponse(_ response: String, exercise: String) -> CoachingFeedback {

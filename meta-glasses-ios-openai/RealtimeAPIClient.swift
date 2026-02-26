@@ -8,7 +8,9 @@
 import Foundation
 import Combine
 import AVFoundation
+import UIKit
 import os.log
+import MWDATCamera
 
 // MARK: - Connection State
 
@@ -127,6 +129,13 @@ final class RealtimeAPIClient: ObservableObject {
     // Track pending function call for tool handling
     private var pendingFunctionCallId: String?
     private var pendingFunctionName: String?
+
+    // Response timeout handling
+    private var responseTimeoutTask: Task<Void, Never>?
+    private let responseTimeoutSeconds: UInt64 = 15 // 15 seconds to get a response
+
+    // Audio chunk counter for debugging
+    private var audioChunksSent: Int = 0
     
     // Track pending tool message for updating with result
     private var pendingToolMessageId: UUID?
@@ -407,14 +416,17 @@ final class RealtimeAPIClient: ObservableObject {
     
     func disconnect() {
         logger.info("Disconnecting from Realtime API")
-        
+
         // Play disconnect sound
         SoundManager.shared.playDisconnectSound()
-        
+
+        // Cancel any pending response timeout
+        cancelResponseTimeout()
+
         // Save messages to thread before clearing
         ThreadsManager.shared.saveMessages(messages: messages)
         ThreadsManager.shared.finalizeActiveThread()
-        
+
         stopListening()
         stopAudioEngine()
         webSocket?.cancel(with: .normalClosure, reason: nil)
@@ -733,13 +745,16 @@ final class RealtimeAPIClient: ObservableObject {
     /// Called when an audio buffer finishes playing (via .dataPlayedBack callback)
     private func handleAudioBufferPlaybackComplete() {
         pendingAudioBufferCount -= 1
-        
+
         // Only transition to idle when ALL buffers are done AND response generation is complete
         if pendingAudioBufferCount <= 0 && responseGenerationComplete {
             pendingAudioBufferCount = 0
             if voiceState == .speaking {
                 voiceState = .idle
+                cancelResponseTimeout() // Success - cancel the timeout
                 logger.info("🔇 All audio buffers finished playing")
+                // Check for pending coaching feedback now that audio is done
+                sendPendingCoachingFeedbackIfNeeded()
             }
         }
     }
@@ -788,6 +803,66 @@ final class RealtimeAPIClient: ObservableObject {
             "type": "response.create"
         ]
         send(event: responseEvent)
+
+        // Extend timeout - response requested, give more time
+        extendTimeoutForResponse()
+    }
+
+    /// Start a timeout timer for processing state - resets to idle if stuck
+    private func startProcessingTimeout() {
+        // Cancel any existing timeout
+        responseTimeoutTask?.cancel()
+
+        responseTimeoutTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: responseTimeoutSeconds * 1_000_000_000)
+
+                // If we get here, timeout occurred
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    // Only timeout if we're still waiting (processing or speaking)
+                    if voiceState == .processing || voiceState == .speaking {
+                        logger.warning("⏱️ Processing timeout - stuck in \(String(describing: self.voiceState)) for \(self.responseTimeoutSeconds)s")
+
+                        // Log timeout to API Debug
+                        APIDebugLogger.shared.logWebSocketEvent(
+                            service: .openAIRealtime,
+                            eventType: "TIMEOUT",
+                            direction: "receive",
+                            summary: "No response after \(self.responseTimeoutSeconds)s - audio may not have been processed"
+                        )
+
+                        voiceState = .idle
+
+                        // Update pending user message if still showing "..."
+                        if let pendingId = pendingUserMessageId,
+                           let index = messages.firstIndex(where: { $0.id == pendingId }) {
+                            if messages[index].text == "..." {
+                                messages[index].text = "(audio not processed)"
+                            }
+                            pendingUserMessageId = nil
+                        }
+
+                        // Add a system message so user knows what happened
+                        messages.append(ChatMessage(isUser: false, text: "⚠️ Request timed out. Please try again."))
+                    }
+                }
+            } catch {
+                // Task was cancelled (response received in time), ignore
+            }
+        }
+    }
+
+    /// Extend timeout when response starts (gives more time for audio playback)
+    private func extendTimeoutForResponse() {
+        startProcessingTimeout() // Reset the timer
+    }
+
+    /// Cancel the response timeout (called when response is received)
+    private func cancelResponseTimeout() {
+        responseTimeoutTask?.cancel()
+        responseTimeoutTask = nil
     }
     
     /// Cancel current response (for barge-in)
@@ -863,97 +938,184 @@ final class RealtimeAPIClient: ObservableObject {
     
     /// Call fast model (Constants.fastModel) for classification
     private func callFastLLM(prompt: String) async throws -> String {
+        let startTime = Date()
         let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(SettingsManager.shared.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 3 // Fast timeout - we need quick response
-        
+
         let body: [String: Any] = [
             "model": Constants.fastModel,
             "messages": [
                 ["role": "user", "content": prompt]
             ],
-            "max_tokens": 10,
+            "max_completion_tokens": 10,
             "temperature": 0
         ]
-        
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: "LLM request failed"])
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+
+            guard httpResponse?.statusCode == 200 else {
+                let errorMsg = "LLM request failed (status: \(httpResponse?.statusCode ?? 0))"
+                APIDebugLogger.shared.logChatCompletion(
+                    model: Constants.fastModel,
+                    prompt: prompt,
+                    response: nil,
+                    statusCode: httpResponse?.statusCode,
+                    durationMs: durationMs,
+                    error: errorMsg
+                )
+                throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+            }
+
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
+                APIDebugLogger.shared.logChatCompletion(
+                    model: Constants.fastModel,
+                    prompt: prompt,
+                    response: String(data: data, encoding: .utf8),
+                    statusCode: httpResponse?.statusCode,
+                    durationMs: durationMs,
+                    error: "Invalid LLM response format"
+                )
+                throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid LLM response"])
+            }
+
+            let result = content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Log successful call
+            APIDebugLogger.shared.logChatCompletion(
+                model: Constants.fastModel,
+                prompt: prompt,
+                response: result,
+                statusCode: httpResponse?.statusCode,
+                durationMs: durationMs
+            )
+
+            return result
+        } catch {
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+            APIDebugLogger.shared.logChatCompletion(
+                model: Constants.fastModel,
+                prompt: prompt,
+                response: nil,
+                statusCode: nil,
+                durationMs: durationMs,
+                error: error.localizedDescription
+            )
+            throw error
         }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid LLM response"])
-        }
-        
-        return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     /// Call Perplexity Search API for web search
     private func callPerplexitySearch(query: String) async throws -> String {
+        let startTime = Date()
         let url = URL(string: Constants.perplexitySearchURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(SettingsManager.shared.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 15
-        
+
         let body: [String: Any] = [
             "query": query,
             "max_results": 5,
             "max_tokens_per_page": 1024
         ]
-        
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw NSError(domain: "RealtimeAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Perplexity API error (\(httpResponse.statusCode)): \(errorMessage)"])
-        }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = json["results"] as? [[String: Any]] else {
-            throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Perplexity response format"])
-        }
-        
-        // Format results for the AI
-        var formattedResults = "Search results for: \(query)\n\n"
-        
-        for (index, result) in results.enumerated() {
-            let title = result["title"] as? String ?? "No title"
-            let snippet = result["snippet"] as? String ?? "No content"
-            let url = result["url"] as? String ?? ""
-            let date = result["date"] as? String
-            
-            formattedResults += "[\(index + 1)] \(title)\n"
-            if let date = date {
-                formattedResults += "Date: \(date)\n"
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+
+            guard let httpResponse = httpResponse else {
+                APIDebugLogger.shared.logPerplexitySearch(
+                    query: query,
+                    response: nil,
+                    statusCode: nil,
+                    durationMs: durationMs,
+                    error: "Invalid response"
+                )
+                throw NSError(domain: "RealtimeAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
             }
-            formattedResults += "\(snippet)\n"
-            formattedResults += "Source: \(url)\n\n"
+
+            guard httpResponse.statusCode == 200 else {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                APIDebugLogger.shared.logPerplexitySearch(
+                    query: query,
+                    response: errorMessage,
+                    statusCode: httpResponse.statusCode,
+                    durationMs: durationMs,
+                    error: "Perplexity API error (\(httpResponse.statusCode))"
+                )
+                throw NSError(domain: "RealtimeAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Perplexity API error (\(httpResponse.statusCode)): \(errorMessage)"])
+            }
+
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]] else {
+                APIDebugLogger.shared.logPerplexitySearch(
+                    query: query,
+                    response: String(data: data, encoding: .utf8),
+                    statusCode: httpResponse.statusCode,
+                    durationMs: durationMs,
+                    error: "Invalid Perplexity response format"
+                )
+                throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Perplexity response format"])
+            }
+
+            // Format results for the AI
+            var formattedResults = "Search results for: \(query)\n\n"
+
+            for (index, result) in results.enumerated() {
+                let title = result["title"] as? String ?? "No title"
+                let snippet = result["snippet"] as? String ?? "No content"
+                let resultUrl = result["url"] as? String ?? ""
+                let date = result["date"] as? String
+
+                formattedResults += "[\(index + 1)] \(title)\n"
+                if let date = date {
+                    formattedResults += "Date: \(date)\n"
+                }
+                formattedResults += "\(snippet)\n"
+                formattedResults += "Source: \(resultUrl)\n\n"
+            }
+
+            if results.isEmpty {
+                formattedResults = "No search results found for: \(query)"
+            }
+
+            // Log successful call
+            APIDebugLogger.shared.logPerplexitySearch(
+                query: query,
+                response: formattedResults,
+                statusCode: httpResponse.statusCode,
+                durationMs: durationMs
+            )
+
+            return formattedResults
+        } catch {
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+            APIDebugLogger.shared.logPerplexitySearch(
+                query: query,
+                response: nil,
+                statusCode: nil,
+                durationMs: durationMs,
+                error: error.localizedDescription
+            )
+            throw error
         }
-        
-        if results.isEmpty {
-            formattedResults = "No search results found for: \(query)"
-        }
-        
-        return formattedResults
     }
     
     /// Get user-friendly display text for tool call
@@ -1102,20 +1264,43 @@ final class RealtimeAPIClient: ObservableObject {
             return
         }
 
-        // Check if glasses are connected
-        guard let glassesManager = glassesManager else {
-            logger.error("❌ Glasses manager not available")
-            updatePendingToolMessage(text: "🏋️ Glasses not connected")
-            sendToolResult(callId: callId, result: "Error: Glasses not connected. Please connect your Meta glasses first.")
+        // Auto-connect and start streaming if needed
+        do {
+            logger.info("🏋️ Ensuring glasses are streaming...")
+            try await glassesManager.ensureStreaming()
+            // Cancel auto-stop timer since gym coaching needs continuous stream
+            await MainActor.run {
+                glassesManager.cancelAutoStopTimer()
+            }
+        } catch {
+            logger.error("❌ Failed to start glasses stream: \(error.localizedDescription)")
+            updatePendingToolMessage(text: "🏋️ Glasses error")
+            sendToolResult(callId: callId, result: "Error: \(error.localizedDescription)")
             return
         }
 
         // Start coaching with frame provider from glasses
         GymCoachManager.shared.startCoaching(
             exercise: exercise,
-            frameProvider: { [weak glassesManager] in
-                guard let frame = glassesManager?.currentFrame else { return nil }
-                return frame.makeUIImage()
+            frameProvider: { [weak self] in
+                guard let self = self else {
+                    print("🏋️ DEBUG: frameProvider - self is nil")
+                    return nil
+                }
+                guard self.glassesManager.connectionState == .streaming else {
+                    print("🏋️ DEBUG: frameProvider - not streaming, state: \(self.glassesManager.connectionState.displayText)")
+                    return nil
+                }
+                guard let frame = self.glassesManager.currentFrame else {
+                    print("🏋️ DEBUG: frameProvider - currentFrame is nil")
+                    return nil
+                }
+                guard let image = frame.makeUIImage() else {
+                    print("🏋️ DEBUG: frameProvider - makeUIImage returned nil")
+                    return nil
+                }
+                print("🏋️ DEBUG: frameProvider - got image \(Int(image.size.width))x\(Int(image.size.height))")
+                return image
             },
             speechCallback: { [weak self] text in
                 // Queue speech to be spoken through the voice agent
@@ -1151,15 +1336,57 @@ final class RealtimeAPIClient: ObservableObject {
 
         GymCoachManager.shared.stopCoaching()
 
+        // Restart auto-stop timer now that coaching is done
+        await MainActor.run {
+            glassesManager.resetAutoStopTimer()
+        }
+
         updatePendingToolMessage(text: "🏋️ Coaching stopped")
         sendToolResult(callId: callId, result: "Gym coaching session ended. Provided \(feedbackCount) form checks during the session. Reps counted: \(repCount).")
     }
 
+    // Queue for pending coaching feedback when response is active
+    private var pendingCoachingFeedback: String?
+    private var lastCoachingFeedbackTime: Date?
+
     /// Queue coaching feedback to be spoken (integrates with existing audio playback)
     private func queueCoachingFeedback(_ text: String) {
-        // Add feedback as an assistant message that will be spoken
-        // This uses the existing TTS system via the Realtime API
-        logger.info("🏋️ Queuing coaching feedback: \(text.prefix(50))...")
+        // Don't send feedback if not connected
+        guard connectionState == .connected else {
+            logger.info("🏋️ Not connected, discarding feedback")
+            return
+        }
+
+        // Don't send feedback too frequently (minimum 3 seconds between)
+        if let lastTime = lastCoachingFeedbackTime, Date().timeIntervalSince(lastTime) < 3.0 {
+            logger.info("🏋️ Too soon since last feedback, discarding: \(text.prefix(30))...")
+            return
+        }
+
+        // Check if a response is already in progress or user is interacting
+        if isResponseActive || voiceState != .idle {
+            logger.info("🏋️ Not idle, saving for later: \(text.prefix(30))...")
+            pendingCoachingFeedback = text
+            return
+        }
+
+        sendCoachingFeedback(text)
+    }
+
+    /// Actually send the coaching feedback to the Realtime API
+    private func sendCoachingFeedback(_ text: String) {
+        // Double-check we're in a good state
+        guard connectionState == .connected && !isResponseActive && voiceState == .idle else {
+            logger.info("🏋️ State changed, queueing feedback instead")
+            pendingCoachingFeedback = text
+            return
+        }
+
+        logger.info("🏋️ Sending coaching feedback: \(text.prefix(50))...")
+        lastCoachingFeedbackTime = Date()
+
+        // Add the feedback as a message to the conversation
+        messages.append(ChatMessage(isUser: false, text: "🏋️ \(text)"))
 
         // Create a response with the coaching feedback
         // The Realtime API will convert this to speech
@@ -1183,12 +1410,31 @@ final class RealtimeAPIClient: ObservableObject {
         let responseEvent: [String: Any] = [
             "type": "response.create",
             "response": [
-                "modalities": ["audio"],
+                "modalities": ["text", "audio"],
                 "instructions": "Speak this coaching feedback naturally and encouragingly: \(text)"
             ] as [String: Any]
         ]
 
         send(event: responseEvent)
+    }
+
+    /// Check and send any pending coaching feedback
+    private func sendPendingCoachingFeedbackIfNeeded() {
+        guard let feedback = pendingCoachingFeedback else { return }
+        guard connectionState == .connected && !isResponseActive && voiceState == .idle else { return }
+
+        pendingCoachingFeedback = nil
+
+        // Add a small delay to let things settle
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            await MainActor.run {
+                // Re-check state after delay
+                if connectionState == .connected && !isResponseActive && voiceState == .idle {
+                    sendCoachingFeedback(feedback)
+                }
+            }
+        }
     }
 
     /// Handle the take_photo tool call
@@ -1223,7 +1469,7 @@ final class RealtimeAPIClient: ObservableObject {
     /// Send an image directly to the Realtime API conversation
     private func sendImageToConversation(imageData: Data) {
         let base64Image = imageData.base64EncodedString()
-        
+
         let imageEvent: [String: Any] = [
             "type": "conversation.item.create",
             "item": [
@@ -1237,46 +1483,27 @@ final class RealtimeAPIClient: ObservableObject {
                 ]
             ] as [String: Any]
         ]
-        
+
         send(event: imageEvent)
         logger.info("📸 Image sent to Realtime API conversation")
+
+        // Log image sent to debug logger
+        APIDebugLogger.shared.logRealtimeImageSent(imageData: imageData)
     }
     
     /// Capture a photo from the glasses and return the image data
-    /// Uses unified capturePhotoAsync() which also saves to Photo Library and Captured Media
+    /// Uses unified capturePhotoAsync() which auto-connects and saves to Photo Library
     private func capturePhotoFromGlasses() async throws -> Data {
-        // Check if glasses are registered
-        let isRegistered = await MainActor.run { glassesManager.isRegistered }
-        guard isRegistered else {
-            throw NSError(
-                domain: "RealtimeAPI",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Glasses not registered. Please register in the Glasses tab first."]
-            )
+        // capturePhotoAsync now handles auto-connect internally via ensureReadyForCapture()
+        // It will connect to glasses automatically if needed
+        let photoData = try await glassesManager.capturePhotoAsync()
+
+        // Reset auto-stop timer since we just used the glasses
+        await MainActor.run {
+            glassesManager.resetAutoStopTimer()
         }
-        
-        // Check if glasses are connected, try to connect if not
-        let isConnected = await MainActor.run { glassesManager.connectionState.isConnected }
-        if !isConnected {
-            logger.info("👓 Glasses not connected, attempting to connect...")
-            await MainActor.run { glassesManager.startSearching() }
-            
-            // Wait a bit for connection
-            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
-            
-            // Check again after waiting
-            let isConnectedNow = await MainActor.run { glassesManager.connectionState.isConnected }
-            if !isConnectedNow {
-                throw NSError(
-                    domain: "RealtimeAPI",
-                    code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Could not connect to glasses. Make sure they are nearby and powered on."]
-                )
-            }
-        }
-        
-        // Use unified capture method that saves to Photo Library and Captured Media
-        return try await glassesManager.capturePhotoAsync()
+
+        return photoData
     }
     
     /// Send tool result back to the Realtime API
@@ -1425,10 +1652,24 @@ final class RealtimeAPIClient: ObservableObject {
             logger.error("Failed to serialize event")
             return
         }
-        
+
+        // Log outgoing event (except audio data which is too large)
+        let eventType = event["type"] as? String ?? "unknown"
+        if eventType != "input_audio_buffer.append" {
+            print("📤 [SEND] \(eventType): \(jsonString.prefix(500))\(jsonString.count > 500 ? "..." : "")")
+        } else {
+            audioChunksSent += 1
+            // Log every 10 chunks to avoid spam but show progress
+            if audioChunksSent % 10 == 0 {
+                let audioSize = (event["audio"] as? String)?.count ?? 0
+                print("📤 [SEND] input_audio_buffer.append #\(audioChunksSent) (\(audioSize) base64 chars)")
+            }
+        }
+
         webSocket?.send(.string(jsonString)) { [weak self] error in
             if let error = error {
                 self?.logger.error("Send error: \(error.localizedDescription)")
+                print("❌ [SEND ERROR] \(error.localizedDescription)")
             }
         }
     }
@@ -1473,16 +1714,18 @@ final class RealtimeAPIClient: ObservableObject {
                     self.receiveMessage()
                     
                 case .failure(let error):
+                    print("❌ [WEBSOCKET ERROR] \(error.localizedDescription)")
+
                     // Ignore errors when we're already disconnected (expected on manual disconnect)
                     guard self.connectionState != .disconnected else { return }
-                    
+
                     // Don't overwrite a specific error message with generic socket error
                     // (e.g., server sent "Incorrect API key" then socket closed)
                     if case .error(_) = self.connectionState {
                         self.logger.info("Socket closed after error was already set, ignoring: \(error.localizedDescription)")
                         return
                     }
-                    
+
                     self.logger.error("Receive error: \(error.localizedDescription)")
                     
                     // Parse error for more meaningful message
@@ -1539,11 +1782,17 @@ final class RealtimeAPIClient: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let eventType = json["type"] as? String else {
             logger.warning("Failed to parse server event")
+            print("❌ [RECV] Failed to parse: \(jsonString.prefix(200))")
             return
         }
-        
+
+        // Log incoming event (except audio delta which is too frequent/large)
+        if eventType != "response.audio.delta" && eventType != "response.audio_transcript.delta" {
+            print("📥 [RECV] \(eventType): \(jsonString.prefix(500))\(jsonString.count > 500 ? "..." : "")")
+        }
+
         lastServerEvent = eventType
-        
+
         switch eventType {
         case "session.created":
             connectionState = .connected
@@ -1567,6 +1816,8 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "response.created":
             logger.info("📝 New response started")
+            // Extend timeout - response is coming, give more time for audio
+            extendTimeoutForResponse()
             // Clear transcript for new response
             assistantTranscript = ""
             isResponseActive = true
@@ -1603,9 +1854,58 @@ final class RealtimeAPIClient: ObservableObject {
                 assistantTranscript = ""
             }
             
+        case "conversation.item.input_audio_transcription.failed":
+            // Handle transcription failure (e.g., rate limiting)
+            logger.error("❌ Transcription failed event received")
+            print("❌ [TRANSCRIPTION FAILED] Event received, json: \(json)")
+
+            // Always cancel timeout and reset state, regardless of error parsing
+            cancelResponseTimeout()
+            voiceState = .idle
+
+            // Try to parse error message
+            let errorMessage: String
+            if let error = json["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                errorMessage = message
+            } else {
+                errorMessage = "Unknown transcription error"
+            }
+
+            logger.error("❌ Transcription error: \(errorMessage)")
+
+            // Log to API Debug
+            APIDebugLogger.shared.logWebSocketEvent(
+                service: .openAIRealtime,
+                eventType: "transcription_failed",
+                direction: "receive",
+                summary: errorMessage
+            )
+
+            // Update pending user message
+            if let pendingId = pendingUserMessageId,
+               let index = messages.firstIndex(where: { $0.id == pendingId }) {
+                messages[index].text = "(transcription failed)"
+                pendingUserMessageId = nil
+            }
+
+            // Show user-friendly error message
+            if errorMessage.contains("429") || errorMessage.lowercased().contains("rate") {
+                messages.append(ChatMessage(isUser: false, text: "⚠️ Rate limit reached. Please wait a moment and try again."))
+            } else {
+                messages.append(ChatMessage(isUser: false, text: "⚠️ Could not transcribe audio. Please try speaking again."))
+            }
+
         case "conversation.item.input_audio_transcription.completed":
             if let transcript = json["transcript"] as? String {
                 userTranscript = transcript
+                // Log WebSocket event for debugging
+                APIDebugLogger.shared.logWebSocketEvent(
+                    service: .openAIRealtime,
+                    eventType: "transcription_completed",
+                    direction: "receive",
+                    summary: "Transcript: \(transcript)"
+                )
                 // Update the placeholder message instead of adding new one
                 if let pendingId = pendingUserMessageId,
                    let index = messages.firstIndex(where: { $0.id == pendingId }) {
@@ -1646,16 +1946,28 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "input_audio_buffer.speech_started":
             logger.info("🎙️ Speech started (VAD)")
-            
+            audioChunksSent = 0 // Reset counter for new utterance
+            print("🎙️ [VAD] Speech started - audio chunk counter reset")
+            // Log WebSocket event for debugging
+            APIDebugLogger.shared.logWebSocketEvent(
+                service: .openAIRealtime,
+                eventType: "speech_started",
+                direction: "receive",
+                summary: "VAD detected speech started"
+            )
+
+            // Cancel any pending response timeout
+            cancelResponseTimeout()
+
             // Always stop any playing audio when user starts speaking
             // This handles the case where response.done was received but audio is still playing
             let wasPlaying = pendingAudioBufferCount > 0 || voiceState == .speaking || isResponseActive
-            
+
             if wasPlaying {
                 logger.info("🛑 Barge-in: stopping AI audio (pending buffers: \(self.pendingAudioBufferCount))")
                 stopPlayback()
                 pendingAudioBufferCount = 0
-                
+
                 if isResponseActive {
                     cancelResponse()
                     isResponseActive = false
@@ -1684,7 +1996,17 @@ final class RealtimeAPIClient: ObservableObject {
             
         case "input_audio_buffer.speech_stopped":
             logger.info("🔇 Speech stopped (VAD)")
+            print("🔇 [VAD] Speech stopped - sent \(audioChunksSent) audio chunks total")
             voiceState = .processing
+            // Start timeout - if we don't get a response, reset to idle
+            startProcessingTimeout()
+            // Log WebSocket event for debugging
+            APIDebugLogger.shared.logWebSocketEvent(
+                service: .openAIRealtime,
+                eventType: "speech_stopped",
+                direction: "receive",
+                summary: "VAD detected speech ended (\(audioChunksSent) chunks), waiting for transcription..."
+            )
             
         case "input_audio_buffer.committed":
             logger.info("📥 Audio buffer committed")
@@ -1693,12 +2015,17 @@ final class RealtimeAPIClient: ObservableObject {
             logger.info("✅ Response generation complete")
             isResponseActive = false
             responseGenerationComplete = true
-            
+
             // Only set idle if all audio buffers have finished playing
             if pendingAudioBufferCount <= 0 {
                 voiceState = .idle
+                cancelResponseTimeout() // Success - cancel the timeout
                 logger.info("🔇 No pending audio buffers, going idle")
+                // Check for pending coaching feedback
+                sendPendingCoachingFeedbackIfNeeded()
             } else {
+                // Extend timeout for audio playback
+                extendTimeoutForResponse()
                 logger.info("⏳ Waiting for \(self.pendingAudioBufferCount) audio buffers to finish playing")
             }
             
@@ -1741,6 +2068,13 @@ final class RealtimeAPIClient: ObservableObject {
                     logger.info("ℹ️ Empty audio buffer commit skipped (no speech detected)")
                 } else {
                     logger.error("❌ Server error: \(message)")
+                    // Log error to API Debug
+                    APIDebugLogger.shared.logWebSocketEvent(
+                        service: .openAIRealtime,
+                        eventType: "ERROR",
+                        direction: "receive",
+                        summary: message
+                    )
                     connectionState = .error(message)
                     voiceState = .idle
                 }

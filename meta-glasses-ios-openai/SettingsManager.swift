@@ -18,14 +18,16 @@ struct AppSettings: Codable {
     var memories: [String: String]
     var openAIAPIKey: String
     var perplexityAPIKey: String
-    
+    var geminiAPIKey: String
+
     static let empty = AppSettings(
         userPrompt: "",
         memories: [:],
         openAIAPIKey: Config.openAIAPIKey,
-        perplexityAPIKey: Config.perplexityAPIKey
+        perplexityAPIKey: Config.perplexityAPIKey,
+        geminiAPIKey: Config.geminiAPIKey
     )
-    
+
     /// Custom decoder to handle missing fields during migration
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -34,13 +36,15 @@ struct AppSettings: Codable {
         // Use Config values as defaults for new fields (migration support)
         openAIAPIKey = try container.decodeIfPresent(String.self, forKey: .openAIAPIKey) ?? Config.openAIAPIKey
         perplexityAPIKey = try container.decodeIfPresent(String.self, forKey: .perplexityAPIKey) ?? Config.perplexityAPIKey
+        geminiAPIKey = try container.decodeIfPresent(String.self, forKey: .geminiAPIKey) ?? Config.geminiAPIKey
     }
-    
-    init(userPrompt: String, memories: [String: String], openAIAPIKey: String, perplexityAPIKey: String) {
+
+    init(userPrompt: String, memories: [String: String], openAIAPIKey: String, perplexityAPIKey: String, geminiAPIKey: String) {
         self.userPrompt = userPrompt
         self.memories = memories
         self.openAIAPIKey = openAIAPIKey
         self.perplexityAPIKey = perplexityAPIKey
+        self.geminiAPIKey = geminiAPIKey
     }
 }
 
@@ -94,7 +98,15 @@ final class SettingsManager: ObservableObject {
             scheduleSave()
         }
     }
-    
+
+    var geminiAPIKey: String {
+        get { settings.geminiAPIKey }
+        set {
+            settings.geminiAPIKey = newValue
+            scheduleSave()
+        }
+    }
+
     // MARK: - API Key Status
     
     var isOpenAIConfigured: Bool {
@@ -104,7 +116,11 @@ final class SettingsManager: ObservableObject {
     var isPerplexityConfigured: Bool {
         !settings.perplexityAPIKey.isEmpty
     }
-    
+
+    var isGeminiConfigured: Bool {
+        !settings.geminiAPIKey.isEmpty
+    }
+
     /// Returns 1 if OpenAI API key is not configured, otherwise 0
     var missingAPIKeysCount: Int {
         isOpenAIConfigured ? 0 : 1
