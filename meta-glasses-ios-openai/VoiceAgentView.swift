@@ -353,14 +353,18 @@ private struct ConnectedView: View {
     let onDisconnect: () -> Void
     let onToggleMute: () -> Void
     let onForceResponse: () -> Void
-    
+
+    // Text input state
+    @State private var textInput: String = ""
+    @FocusState private var isTextFieldFocused: Bool
+
     // Scroll tracking state
     @State private var isAutoScrollEnabled: Bool = true
     @State private var contentHeight: CGFloat = 0
     @State private var scrollViewHeight: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
     @State private var scrollDebounceTask: Task<Void, Never>?
-    
+
     // Threshold for considering user "at bottom"
     private let bottomThreshold: CGFloat = 50
     // Debounce interval for scroll during streaming
@@ -453,6 +457,18 @@ private struct ConnectedView: View {
                 }
             }
             
+            // Text input bar
+            TextInputBar(
+                text: $textInput,
+                isFocused: $isTextFieldFocused,
+                isEnabled: client.voiceState != .processing && client.voiceState != .speaking,
+                onSend: {
+                    client.sendTextMessage(textInput)
+                    textInput = ""
+                    isTextFieldFocused = false
+                }
+            )
+
             // Bottom controls
             ControlBar(
                 voiceState: client.voiceState,
@@ -736,6 +752,43 @@ private struct MessageBubble: View {
             
             if !isUser { Spacer(minLength: 40) }
         }
+    }
+}
+
+// MARK: - Text Input Bar
+
+private struct TextInputBar: View {
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+    let isEnabled: Bool
+    let onSend: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("Type a message...", text: $text)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(20)
+                .focused(isFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    if isEnabled && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        onSend()
+                    }
+                }
+
+            Button(action: onSend) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(.blue)
+            }
+            .disabled(!isEnabled || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(!isEnabled || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1.0)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
 
