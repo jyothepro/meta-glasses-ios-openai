@@ -138,6 +138,9 @@ final class ConversationCaptureManager: ObservableObject {
             // Re-enable screen sleep
             UIApplication.shared.isIdleTimerDisabled = false
 
+            // Deactivate audio session
+            audioManager.deactivate()
+
             // Play stop sound
             SoundManager.shared.playCaptureStopSound()
 
@@ -241,6 +244,27 @@ final class ConversationCaptureManager: ObservableObject {
 
             processingStep = ""
             captureState = .completed
+
+            // Create a thread entry so the capture appears in Threads tab
+            let summaryText: String? = store.loadSummary(for: session.id).map { summary in
+                var parts: [String] = []
+                if !summary.keyPoints.isEmpty {
+                    parts.append("Key Points:\n" + summary.keyPoints.map { "• \($0)" }.joined(separator: "\n"))
+                }
+                if !summary.decisions.isEmpty {
+                    parts.append("Decisions:\n" + summary.decisions.map { "• \($0)" }.joined(separator: "\n"))
+                }
+                if !summary.actionItems.isEmpty {
+                    parts.append("Action Items:\n" + summary.actionItems.map { "• \($0.description)" }.joined(separator: "\n"))
+                }
+                return parts.joined(separator: "\n\n")
+            }
+            ThreadsManager.shared.createCaptureThread(
+                title: session.title,
+                captureId: session.id,
+                summaryText: summaryText
+            )
+
             logger.info("Capture pipeline complete: \(session.id)")
 
         } catch {
@@ -319,6 +343,9 @@ final class ConversationCaptureManager: ObservableObject {
 
         // Re-enable screen sleep
         UIApplication.shared.isIdleTimerDisabled = false
+
+        // Deactivate audio session
+        audioManager.deactivate()
 
         // Delete capture directory if session exists
         if let session = currentSession {

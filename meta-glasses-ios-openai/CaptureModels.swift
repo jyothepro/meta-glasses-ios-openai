@@ -206,9 +206,14 @@ final class CaptureStore: ObservableObject {
         }
     }
 
-    /// Get or create the directory for a specific capture
+    /// Get the directory path for a specific capture (read-only, no side effects)
+    func captureDirectoryURL(for captureId: UUID) -> URL {
+        capturesDirectory.appendingPathComponent(captureId.uuidString)
+    }
+
+    /// Get or create the directory for a specific capture (use for writes only)
     func captureDirectory(for captureId: UUID) -> URL {
-        let dir = capturesDirectory.appendingPathComponent(captureId.uuidString)
+        let dir = captureDirectoryURL(for: captureId)
         let fm = FileManager.default
         if !fm.fileExists(atPath: dir.path) {
             do {
@@ -249,7 +254,7 @@ final class CaptureStore: ObservableObject {
         sessions.removeAll { $0.id == id }
 
         // Remove capture directory and all files
-        let dir = capturesDirectory.appendingPathComponent(id.uuidString)
+        let dir = captureDirectoryURL(for: id)
         do {
             if FileManager.default.fileExists(atPath: dir.path) {
                 try FileManager.default.removeItem(at: dir)
@@ -278,7 +283,7 @@ final class CaptureStore: ObservableObject {
     }
 
     func loadTranscript(for captureId: UUID) -> Transcript? {
-        let url = captureDirectory(for: captureId).appendingPathComponent("transcript.json")
+        let url = captureDirectoryURL(for: captureId).appendingPathComponent("transcript.json")
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         do {
             let data = try Data(contentsOf: url)
@@ -307,7 +312,7 @@ final class CaptureStore: ObservableObject {
     }
 
     func loadSummary(for captureId: UUID) -> CaptureSummary? {
-        let url = captureDirectory(for: captureId).appendingPathComponent("summary.json")
+        let url = captureDirectoryURL(for: captureId).appendingPathComponent("summary.json")
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         do {
             let data = try Data(contentsOf: url)
