@@ -40,6 +40,20 @@ final class SoundManager {
         logger.info("🔔 Playing disconnect sound")
         playTone(frequencies: [1320, 880], duration: 0.08, pause: 0.05)
     }
+
+    /// Play sound when Capture recording starts
+    /// Low ascending three-tone chime (recording-start feeling)
+    func playCaptureStartSound() {
+        logger.info("🔔 Playing capture start sound")
+        playTone(frequencies: [440, 660, 880], duration: 0.06, pause: 0.04)
+    }
+
+    /// Play sound when Capture recording stops
+    /// Low descending two-tone chime (recording-stop feeling)
+    func playCaptureStopSound() {
+        logger.info("🔔 Playing capture stop sound")
+        playTone(frequencies: [880, 440], duration: 0.1, pause: 0.06)
+    }
     
     /// Generate and play a sequence of sine wave tones
     private func playTone(frequencies: [Double], duration: Double, pause: Double) {

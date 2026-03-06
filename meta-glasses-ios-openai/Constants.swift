@@ -18,6 +18,9 @@ enum Constants {
     
     /// Perplexity Search API endpoint
     static let perplexitySearchURL = "https://api.perplexity.ai/search"
+
+    /// OpenAI Whisper Transcription API endpoint
+    static let whisperTranscriptionURL = "https://api.openai.com/v1/audio/transcriptions"
     
     // MARK: - OpenAI Models
     

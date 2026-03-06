@@ -16,12 +16,14 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "meta-gla
 
 enum AppTab: Int {
     case voiceAgent = 0
-    case threads = 1
-    case settings = 2
-    
+    case capture = 1
+    case threads = 2
+    case settings = 3
+
     var name: String {
         switch self {
         case .voiceAgent: return "Voice Agent"
+        case .capture: return "Capture"
         case .threads: return "Threads"
         case .settings: return "Settings"
         }
@@ -60,7 +62,13 @@ struct ContentView: View {
                             Label("Voice Agent", systemImage: "waveform.circle")
                         }
                         .tag(AppTab.voiceAgent)
-                    
+
+                    LazyView(ConversationCaptureView())
+                        .tabItem {
+                            Label("Capture", systemImage: "waveform")
+                        }
+                        .tag(AppTab.capture)
+
                     ThreadsView(onContinueThread: {
                             selectedTab = .voiceAgent
                         })

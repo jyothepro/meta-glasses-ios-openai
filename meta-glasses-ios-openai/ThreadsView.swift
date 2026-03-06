@@ -86,13 +86,17 @@ private struct ThreadsListContent: View {
         }
         .listStyle(.plain)
         .navigationDestination(for: ConversationThread.self) { thread in
-            ThreadDetailView(
-                threadId: thread.id,
-                onDelete: {
-                    onDelete(thread)
-                },
-                onContinue: onContinue
-            )
+            if thread.threadType == .capture, let captureId = thread.captureId {
+                CaptureDetailView(captureId: captureId)
+            } else {
+                ThreadDetailView(
+                    threadId: thread.id,
+                    onDelete: {
+                        onDelete(thread)
+                    },
+                    onContinue: onContinue
+                )
+            }
         }
     }
 }
@@ -101,21 +105,33 @@ private struct ThreadsListContent: View {
 
 private struct ThreadRow: View {
     let thread: ConversationThread
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(thread.title)
-                .font(.headline)
-                .lineLimit(1)
-            
-            HStack(spacing: 12) {
-                Label("\(thread.messages.count)", systemImage: "bubble.left.and.bubble.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Text(formatDate(thread.updatedAt))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        HStack(spacing: 12) {
+            Image(systemName: thread.threadType == .capture ? "waveform" : "bubble.left.and.bubble.right")
+                .foregroundColor(thread.threadType == .capture ? .orange : .blue)
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(thread.title)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                HStack(spacing: 12) {
+                    if thread.threadType == .capture {
+                        Label("Capture", systemImage: "mic.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else {
+                        Label("\(thread.messages.count)", systemImage: "bubble.left.and.bubble.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text(formatDate(thread.updatedAt))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(.vertical, 4)

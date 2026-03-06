@@ -20,12 +20,18 @@ struct AppSettings: Codable {
     var perplexityAPIKey: String
     var geminiAPIKey: String
 
+    // Capture settings
+    var captureAutoSummary: Bool
+    var captureConsentAcknowledged: Bool
+
     static let empty = AppSettings(
         userPrompt: "",
         memories: [:],
         openAIAPIKey: Config.openAIAPIKey,
         perplexityAPIKey: Config.perplexityAPIKey,
-        geminiAPIKey: Config.geminiAPIKey
+        geminiAPIKey: Config.geminiAPIKey,
+        captureAutoSummary: true,
+        captureConsentAcknowledged: false
     )
 
     /// Custom decoder to handle missing fields during migration
@@ -33,18 +39,21 @@ struct AppSettings: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         userPrompt = try container.decodeIfPresent(String.self, forKey: .userPrompt) ?? ""
         memories = try container.decodeIfPresent([String: String].self, forKey: .memories) ?? [:]
-        // Use Config values as defaults for new fields (migration support)
         openAIAPIKey = try container.decodeIfPresent(String.self, forKey: .openAIAPIKey) ?? Config.openAIAPIKey
         perplexityAPIKey = try container.decodeIfPresent(String.self, forKey: .perplexityAPIKey) ?? Config.perplexityAPIKey
         geminiAPIKey = try container.decodeIfPresent(String.self, forKey: .geminiAPIKey) ?? Config.geminiAPIKey
+        captureAutoSummary = try container.decodeIfPresent(Bool.self, forKey: .captureAutoSummary) ?? true
+        captureConsentAcknowledged = try container.decodeIfPresent(Bool.self, forKey: .captureConsentAcknowledged) ?? false
     }
 
-    init(userPrompt: String, memories: [String: String], openAIAPIKey: String, perplexityAPIKey: String, geminiAPIKey: String) {
+    init(userPrompt: String, memories: [String: String], openAIAPIKey: String, perplexityAPIKey: String, geminiAPIKey: String, captureAutoSummary: Bool = true, captureConsentAcknowledged: Bool = false) {
         self.userPrompt = userPrompt
         self.memories = memories
         self.openAIAPIKey = openAIAPIKey
         self.perplexityAPIKey = perplexityAPIKey
         self.geminiAPIKey = geminiAPIKey
+        self.captureAutoSummary = captureAutoSummary
+        self.captureConsentAcknowledged = captureConsentAcknowledged
     }
 }
 
@@ -103,6 +112,22 @@ final class SettingsManager: ObservableObject {
         get { settings.geminiAPIKey }
         set {
             settings.geminiAPIKey = newValue
+            scheduleSave()
+        }
+    }
+
+    var captureAutoSummary: Bool {
+        get { settings.captureAutoSummary }
+        set {
+            settings.captureAutoSummary = newValue
+            scheduleSave()
+        }
+    }
+
+    var captureConsentAcknowledged: Bool {
+        get { settings.captureConsentAcknowledged }
+        set {
+            settings.captureConsentAcknowledged = newValue
             scheduleSave()
         }
     }

@@ -35,19 +35,40 @@ struct StoredMessage: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
+enum ThreadType: String, Codable, Equatable, Hashable {
+    case voiceAgent
+    case capture
+}
+
 struct ConversationThread: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     let createdAt: Date
     var updatedAt: Date
     var title: String
     var messages: [StoredMessage]
-    
-    init(id: UUID, createdAt: Date, updatedAt: Date, title: String, messages: [StoredMessage]) {
+    var threadType: ThreadType
+    var captureId: UUID?
+
+    init(id: UUID, createdAt: Date, updatedAt: Date, title: String, messages: [StoredMessage], threadType: ThreadType = .voiceAgent, captureId: UUID? = nil) {
         self.id = id
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.title = title
         self.messages = messages
+        self.threadType = threadType
+        self.captureId = captureId
+    }
+
+    /// Custom decoder to handle migration from older data without threadType/captureId
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        title = try container.decode(String.self, forKey: .title)
+        messages = try container.decode([StoredMessage].self, forKey: .messages)
+        threadType = try container.decodeIfPresent(ThreadType.self, forKey: .threadType) ?? .voiceAgent
+        captureId = try container.decodeIfPresent(UUID.self, forKey: .captureId)
     }
     
     /// Create a new empty thread
@@ -117,6 +138,34 @@ final class ThreadsManager: ObservableObject {
         activeThreadId = thread.id
         save()
         logger.info("📝 Created new thread: \(thread.id)")
+        return thread.id
+    }
+
+    /// Create a capture thread linked to a CaptureSession
+    func createCaptureThread(title: String, captureId: UUID, summaryText: String?) -> UUID {
+        let now = Date()
+        var messages: [StoredMessage] = []
+        if let summary = summaryText, !summary.isEmpty {
+            messages.append(StoredMessage(
+                id: UUID(),
+                isUser: false,
+                text: summary,
+                timestamp: now
+            ))
+        }
+
+        let thread = ConversationThread(
+            id: UUID(),
+            createdAt: now,
+            updatedAt: now,
+            title: title,
+            messages: messages,
+            threadType: .capture,
+            captureId: captureId
+        )
+        threads.insert(thread, at: 0)
+        save()
+        logger.info("📝 Created capture thread: \(thread.id) for capture: \(captureId)")
         return thread.id
     }
     
