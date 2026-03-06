@@ -220,6 +220,24 @@ final class AudioManager: NSObject {
     var recordingDuration: TimeInterval {
         return audioRecorder?.currentTime ?? 0
     }
+
+    // MARK: - Audio Metering
+
+    /// Enable metering on the active recorder for audio level monitoring
+    func enableMetering() {
+        audioRecorder?.isMeteringEnabled = true
+    }
+
+    /// Get current audio level (0.0 to 1.0) from the active recorder
+    func currentAudioLevel() -> Float {
+        guard let recorder = audioRecorder, recordingState == .recording else { return 0 }
+        recorder.updateMeters()
+        // averagePower returns dB from -160 to 0
+        let dB = recorder.averagePower(forChannel: 0)
+        // Normalize: -60 dB → 0.0, 0 dB → 1.0
+        let normalized = max(0, (dB + 60) / 60)
+        return min(normalized, 1.0)
+    }
 }
 
 // MARK: - AVAudioRecorderDelegate

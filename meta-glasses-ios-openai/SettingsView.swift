@@ -187,6 +187,30 @@ struct SettingsView: View {
                     Text("Privacy")
                 }
                 
+                // Capture Section
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settingsManager.captureAutoSummary },
+                        set: { settingsManager.captureAutoSummary = $0 }
+                    )) {
+                        Label("Auto-generate Summary", systemImage: "text.badge.checkmark")
+                    }
+
+                    if settingsManager.captureConsentAcknowledged {
+                        Button(role: .destructive) {
+                            settingsManager.captureConsentAcknowledged = false
+                        } label: {
+                            Label("Reset Consent Acknowledgment", systemImage: "arrow.counterclockwise")
+                        }
+                    }
+
+                    Text("Conversation Capture records audio through your glasses or device microphone and transcribes it using OpenAI Whisper. Audio is stored locally on your device.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("Capture")
+                }
+
                 // Threads Section
                 Section {
                     Button {
