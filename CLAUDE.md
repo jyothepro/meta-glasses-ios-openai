@@ -91,6 +91,11 @@ iOS app for Meta Ray-Ban smart glasses with OpenAI Realtime API voice assistant.
 - LazyView for deferred VoiceAgentView initialization
 - Listener tokens retained for SDK stream subscriptions
 
+## Git & GitHub
+
+- Always push branches to `origin` (jyothepro/meta-glasses-ios-openai)
+- Always create PRs targeting `jyothepro/meta-glasses-ios-openai`, not the upstream fork: use `gh pr create --repo jyothepro/meta-glasses-ios-openai`
+
 ## Requirements
 
 - Physical iOS device (simulator doesn't support Bluetooth)
