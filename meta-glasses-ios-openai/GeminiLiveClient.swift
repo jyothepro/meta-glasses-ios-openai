@@ -89,7 +89,9 @@ final class GeminiLiveClient: NSObject, ObservableObject {
 
     /// Connect to Gemini Live API with a system instruction for coaching
     func connect(systemInstruction: String) async throws {
-        guard state == .disconnected || state == .error("") else {
+        if case .error = state {
+            // Allow reconnect attempts after any previous error state
+        } else if state != .disconnected {
             logger.warning("Already connected or connecting")
             return
         }
