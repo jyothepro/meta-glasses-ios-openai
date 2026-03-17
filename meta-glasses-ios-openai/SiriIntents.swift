@@ -60,6 +60,11 @@ struct MetaGlassesShortcuts: AppShortcutsProvider {
             intent: StartVoiceAgentIntent(),
             phrases: [
                 "Start session with \(.applicationName)",
+                "Start AI assistant with \(.applicationName)",
+                "Open \(.applicationName) assistant",
+                "Talk to AI with \(.applicationName)",
+                "Start glasses mode",
+                "jyo mode",
             ],
             shortTitle: "Start AI Assistant",
             systemImageName: "waveform.circle"
