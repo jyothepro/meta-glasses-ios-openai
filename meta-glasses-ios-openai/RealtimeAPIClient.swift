@@ -170,14 +170,11 @@ final class RealtimeAPIClient: ObservableObject {
         - Use stop_gym_coaching when the user says they're done with the exercise or wants to stop coaching
         """
 
-        // Only include search_internet if Perplexity is configured
-        if SettingsManager.shared.isPerplexityConfigured {
-            instructions += """
+        instructions += """
 
-            - You can search the internet via the search_internet tool
-            - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
-            """
-        }
+        - You can search the internet via the search_internet tool
+        - Use search_internet when the user asks about current events, news, weather, prices, stock quotes, sports scores, or any question requiring real-time up-to-date information
+        """
 
         instructions += """
 
@@ -189,12 +186,10 @@ final class RealtimeAPIClient: ObservableObject {
         - When describing what the user sees, be specific and helpful
         """
         
-        if SettingsManager.shared.isPerplexityConfigured {
-            instructions += """
-            
-            - When providing search results, summarize the key information concisely
-            """
-        }
+        instructions += """
+
+        - When providing search results, summarize the key information concisely
+        """
         
         instructions += """
         
@@ -1060,20 +1055,22 @@ final class RealtimeAPIClient: ObservableObject {
         }
     }
     
-    /// Call Perplexity Search API for web search
-    private func callPerplexitySearch(query: String) async throws -> String {
+    /// Call OpenAI Chat Completions API with web search for real-time information
+    private func callWebSearch(query: String) async throws -> String {
         let startTime = Date()
-        let url = URL(string: Constants.perplexitySearchURL)!
+        let url = URL(string: Constants.openAIChatCompletionsURL)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(SettingsManager.shared.perplexityAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(SettingsManager.shared.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 20
 
         let body: [String: Any] = [
-            "query": query,
-            "max_results": 5,
-            "max_tokens_per_page": 1024
+            "model": "gpt-4o-mini-search-preview",
+            "web_search_options": [:] as [String: Any],
+            "messages": [
+                ["role": "user", "content": query]
+            ]
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -1101,43 +1098,27 @@ final class RealtimeAPIClient: ObservableObject {
                     response: errorMessage,
                     statusCode: httpResponse.statusCode,
                     durationMs: durationMs,
-                    error: "Perplexity API error (\(httpResponse.statusCode))"
+                    error: "OpenAI search error (\(httpResponse.statusCode))"
                 )
-                throw NSError(domain: "RealtimeAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Perplexity API error (\(httpResponse.statusCode)): \(errorMessage)"])
+                throw NSError(domain: "RealtimeAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "OpenAI search error (\(httpResponse.statusCode)): \(errorMessage)"])
             }
 
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let results = json["results"] as? [[String: Any]] else {
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
                 APIDebugLogger.shared.logPerplexitySearch(
                     query: query,
                     response: String(data: data, encoding: .utf8),
                     statusCode: httpResponse.statusCode,
                     durationMs: durationMs,
-                    error: "Invalid Perplexity response format"
+                    error: "Invalid OpenAI search response format"
                 )
-                throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Perplexity response format"])
+                throw NSError(domain: "RealtimeAPI", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid OpenAI search response format"])
             }
 
-            // Format results for the AI
-            var formattedResults = "Search results for: \(query)\n\n"
-
-            for (index, result) in results.enumerated() {
-                let title = result["title"] as? String ?? "No title"
-                let snippet = result["snippet"] as? String ?? "No content"
-                let resultUrl = result["url"] as? String ?? ""
-                let date = result["date"] as? String
-
-                formattedResults += "[\(index + 1)] \(title)\n"
-                if let date = date {
-                    formattedResults += "Date: \(date)\n"
-                }
-                formattedResults += "\(snippet)\n"
-                formattedResults += "Source: \(resultUrl)\n\n"
-            }
-
-            if results.isEmpty {
-                formattedResults = "No search results found for: \(query)"
-            }
+            let formattedResults = "Search results for: \(query)\n\n\(content)"
 
             // Log successful call
             APIDebugLogger.shared.logPerplexitySearch(
@@ -1282,7 +1263,7 @@ final class RealtimeAPIClient: ObservableObject {
         }
         
         do {
-            let results = try await callPerplexitySearch(query: trimmedQuery)
+            let results = try await callWebSearch(query: trimmedQuery)
             logger.info("🔍 Search completed successfully")
             updatePendingToolMessage(text: "🔍 Found results")
             sendToolResult(callId: callId, result: results)
@@ -1639,30 +1620,25 @@ final class RealtimeAPIClient: ObservableObject {
             ] as [String: Any]
         ]
 
-        // Build tools array - search_internet is only available if Perplexity is configured
-        var tools: [[String: Any]] = [takePhotoTool, manageMemoryTool, startGymCoachingTool, stopGymCoachingTool]
+        let searchInternetTool: [String: Any] = [
+            "type": "function",
+            "name": "search_internet",
+            "description": "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
+            "parameters": [
+                "type": "object",
+                "properties": [
+                    "query": [
+                        "type": "string",
+                        "description": "Search query in natural language, one sentence"
+                    ] as [String: Any]
+                ] as [String: Any],
+                "required": ["query"]
+            ] as [String: Any]
+        ]
 
-        if SettingsManager.shared.isPerplexityConfigured {
-            let searchInternetTool: [String: Any] = [
-                "type": "function",
-                "name": "search_internet",
-                "description": "Search the internet for real-time information. Use when user asks about current events, news, weather, prices, sports scores, stock prices, or any question requiring up-to-date information from the web.",
-                "parameters": [
-                    "type": "object",
-                    "properties": [
-                        "query": [
-                            "type": "string",
-                            "description": "Search query in natural language, one sentence"
-                        ] as [String: Any]
-                    ] as [String: Any],
-                    "required": ["query"]
-                ] as [String: Any]
-            ]
-            tools.append(searchInternetTool)
-            logger.info("🔍 search_internet tool enabled (Perplexity configured)")
-        } else {
-            logger.info("🔍 search_internet tool disabled (Perplexity not configured)")
-        }
+        // Build tools array - search_internet always enabled via OpenAI
+        let tools: [[String: Any]] = [takePhotoTool, manageMemoryTool, startGymCoachingTool, stopGymCoachingTool, searchInternetTool]
+        logger.info("🔍 search_internet tool enabled (OpenAI)")
         
         let sessionConfig: [String: Any] = [
             "type": "session.update",

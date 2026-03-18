@@ -16,8 +16,8 @@ enum Constants {
     /// OpenAI Chat Completions API endpoint
     static let openAIChatCompletionsURL = "https://api.openai.com/v1/chat/completions"
     
-    /// Perplexity Search API endpoint
-    static let perplexitySearchURL = "https://api.perplexity.ai/search"
+    /// Perplexity Chat Completions API endpoint (used for web search)
+    static let perplexitySearchURL = "https://api.perplexity.ai/chat/completions"
 
     /// OpenAI Whisper Transcription API endpoint
     static let whisperTranscriptionURL = "https://api.openai.com/v1/audio/transcriptions"
@@ -25,7 +25,7 @@ enum Constants {
     // MARK: - OpenAI Models
     
     /// Fast model for quick tasks (intent classification, title generation, etc.)
-    static let fastModel = "gpt-5-mini"
+    static let fastModel = "gpt-5.4-mini"
     
     /// Whisper model for audio transcription
     static let whisperModel = "whisper-1"
@@ -41,5 +41,5 @@ enum Constants {
     static let geminiLiveAPIURL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
     /// Gemini model for Live API (real-time audio + video)
-    static let geminiLiveModel = "gemini-2.5-flash-native-audio-latest"
+    static let geminiLiveModel = "gemini-3.1-flash-lite-preview"
 }

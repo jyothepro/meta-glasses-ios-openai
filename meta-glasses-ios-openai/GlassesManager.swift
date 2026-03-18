@@ -735,7 +735,7 @@ final class GlassesManager: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 await MainActor.run {
-                    if self.connectionState == .streaming && self.recordingState == .idle {
+                    if self.connectionState == .streaming && self.recordingState == .idle && !GymCoachManager.shared.state.isActive {
                         Log.glasses.info("⏱️ Auto-stopping stream after \(self.autoStopDelaySeconds)s of inactivity")
                         self.stopStreaming()
                     }

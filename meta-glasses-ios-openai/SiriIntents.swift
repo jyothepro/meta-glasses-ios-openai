@@ -63,8 +63,8 @@ struct MetaGlassesShortcuts: AppShortcutsProvider {
                 "Start AI assistant with \(.applicationName)",
                 "Open \(.applicationName) assistant",
                 "Talk to AI with \(.applicationName)",
-                "Start glasses mode",
-                "jyo mode",
+                "Start glasses mode with \(.applicationName)",
+                "jyo mode with \(.applicationName)",
             ],
             shortTitle: "Start AI Assistant",
             systemImageName: "waveform.circle"
